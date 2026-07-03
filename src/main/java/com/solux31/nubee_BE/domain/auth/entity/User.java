@@ -40,7 +40,7 @@ public class User {
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
-    @Column(name = "point", nullable = false)
+    @Column(name = "current_point", nullable = false)
     private int point = 0;
 
     @Column(name = "current_level", nullable = false)
