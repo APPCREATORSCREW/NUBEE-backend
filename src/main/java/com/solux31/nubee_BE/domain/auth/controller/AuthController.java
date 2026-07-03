@@ -9,6 +9,7 @@ import com.solux31.nubee_BE.global.apiPayload.ApiResponse;
 import com.solux31.nubee_BE.global.apiPayload.code.GeneralSuccessCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -25,14 +26,14 @@ public class AuthController {
     // 회원가입
     @PostMapping("/signup")
     @Operation(summary = "회원가입", description = "이름, 이메일, 비밀번호, 생년월일로 회원가입합니다.")
-    public ApiResponse<SignupResDTO> signup(@RequestBody SignupReqDTO request) {
+    public ApiResponse<SignupResDTO> signup(@RequestBody @Valid SignupReqDTO request) {
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, authService.signup(request));
     }
 
     // 로그인
     @PostMapping("/login")
     @Operation(summary = "로그인", description = "이메일과 비밀번호로 로그인합니다.")
-    public ApiResponse<LoginResDTO> login(@RequestBody LoginReqDTO request) {
+    public ApiResponse<LoginResDTO> login(@RequestBody @Valid LoginReqDTO request) {
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, authService.login(request));
     }
 
