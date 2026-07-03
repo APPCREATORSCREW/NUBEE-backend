@@ -4,8 +4,10 @@ import com.solux31.nubee_BE.domain.auth.dto.Request.LoginReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.SignupReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.SignupResDTO;
+import com.solux31.nubee_BE.domain.auth.entity.RefreshToken;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
+import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.global.security.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.Period;
 
 @Service
@@ -21,6 +24,7 @@ import java.time.Period;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
@@ -66,11 +70,14 @@ public class AuthService {
         String accessToken = jwtUtil.generateAccessToken(user.getEmail());
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
 
+        // RefreshToken 저장
+        saveRefreshToken(user, refreshToken);
+
         return new SignupResDTO(accessToken, refreshToken);
     }
 
     // 로그인
-    @Transactional(readOnly = true)
+    @Transactional
     public LoginResDTO login(LoginReqDTO request) {
 
         // 이메일로 유저 찾기
@@ -82,9 +89,15 @@ public class AuthService {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
+        // 기존 RefreshToken 삭제
+        refreshTokenRepository.deleteByUser(user);
+
         // 토큰 발급
         String accessToken = jwtUtil.generateAccessToken(user.getEmail());
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
+
+        // RefreshToken 저장
+        saveRefreshToken(user, refreshToken);
 
         return new LoginResDTO(accessToken, refreshToken);
     }
@@ -92,6 +105,21 @@ public class AuthService {
     // 로그아웃
     @Transactional
     public void logout(String email) {
-        // 추후 RefreshToken 무효화 로직 추가 예정
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+
+        // RefreshToken 삭제
+        refreshTokenRepository.deleteByUser(user);
+    }
+
+    // RefreshToken 저장 공통 메서드
+    private void saveRefreshToken(User user, String refreshToken) {
+        RefreshToken token = RefreshToken.builder()
+                .user(user)
+                .tokenHash(refreshToken)
+                .expiresAt(LocalDateTime.now().plusDays(7))
+                .build();
+
+        refreshTokenRepository.save(token);
     }
 }
