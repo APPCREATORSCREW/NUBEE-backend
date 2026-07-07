@@ -22,7 +22,7 @@ public class RefreshToken {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "token_hash", nullable = false, length = 64)
+    @Column(name = "token_hash", nullable = false, length = 512)
     private String tokenHash;
 
     @Column(name = "device_info")

@@ -40,28 +40,34 @@ public class User {
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
+    @Builder.Default
     @Column(name = "current_point", nullable = false)
     private int point = 0;
 
+    @Builder.Default
     @Column(name = "current_level", nullable = false)
     private int currentLevel = 1;
 
+    @Builder.Default
     @Column(name = "preferred_keyword_count", nullable = false)
     private int preferredKeywordCount = 3;
 
     @Column(name = "notification_time")
     private LocalTime notificationTime;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private UserStatus status = UserStatus.ACTIVE;
 
+    @Builder.Default
     @Column(name = "current_skin", nullable = false)
     private String currentSkin = "DEFAULT";
 
     @Column(name = "parent_email")
     private String parentEmail;
 
+    @Builder.Default
     @Column(name = "is_parent_verified", nullable = false)
     private boolean isParentVerified = false;
 
