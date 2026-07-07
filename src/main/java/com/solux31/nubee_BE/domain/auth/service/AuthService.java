@@ -1,9 +1,12 @@
 package com.solux31.nubee_BE.domain.auth.service;
 
 import com.solux31.nubee_BE.domain.auth.dto.Request.LoginReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Request.PasswordChangeReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.SignupReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Request.TokenRefreshReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.SignupResDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Response.TokenRefreshResDTO;
 import com.solux31.nubee_BE.domain.auth.entity.RefreshToken;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
@@ -143,5 +146,77 @@ public class AuthService {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("토큰 해싱 실패", e);
         }
+    }
+
+    // 토큰 갱신
+    @Transactional
+    public TokenRefreshResDTO refresh(TokenRefreshReqDTO request) {
+
+        String refreshToken = request.getRefreshToken();
+
+        // Refresh Token 유효성 검증
+        if (!jwtUtil.isTokenValid(refreshToken)) {
+            throw new IllegalArgumentException("유효하지 않은 Refresh Token입니다.");
+        }
+
+        // Refresh Token 타입 확인
+        if (!jwtUtil.isRefreshToken(refreshToken)) {
+            throw new IllegalArgumentException("Refresh Token이 아닙니다.");
+        }
+
+        // SHA-256 해싱 후 DB 조회
+        String hashedToken = hashToken(refreshToken);
+        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(hashedToken)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Refresh Token입니다."));
+
+        // 만료 여부 확인
+        if (storedToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("만료된 Refresh Token입니다.");
+        }
+
+        // 유저 조회
+        User user = storedToken.getUser();
+
+        // 기존 Refresh Token 삭제
+        refreshTokenRepository.delete(storedToken);
+
+        // 새 토큰 발급
+        String newAccessToken = jwtUtil.generateAccessToken(user.getEmail());
+        String newRefreshToken = jwtUtil.generateRefreshToken(user.getEmail());
+
+        // 새 Refresh Token 저장
+        saveRefreshToken(user, newRefreshToken);
+
+        return new TokenRefreshResDTO(newAccessToken, newRefreshToken);
+    }
+
+    // 비밀번호 변경
+    @Transactional
+    public void changePassword(String email, PasswordChangeReqDTO request) {
+
+        // 유저 조회
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+
+        // 현재 비밀번호 확인
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
+        }
+
+        // 새 비밀번호 확인
+        if (!request.getNewPassword().equals(request.getNewPasswordConfirm())) {
+            throw new IllegalArgumentException("새 비밀번호가 일치하지 않습니다.");
+        }
+
+        // 현재 비밀번호랑 새 비밀번호가 같으면 에러
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("현재 비밀번호와 동일한 비밀번호로 변경할 수 없습니다.");
+        }
+
+        // 비밀번호 변경
+        user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
+
+        // 기존 Refresh Token 전체 삭제 (재로그인 유도)
+        refreshTokenRepository.deleteByUser(user);
     }
 }

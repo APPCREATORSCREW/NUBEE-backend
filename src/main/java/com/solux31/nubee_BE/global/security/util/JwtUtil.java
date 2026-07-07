@@ -82,4 +82,14 @@ public class JwtUtil {
                 .parseSignedClaims(token)
                 .getPayload();
     }
+
+    // Refresh Token 여부 확인
+    public boolean isRefreshToken(String token) {
+        try {
+            String tokenType = (String) getClaims(token).get("token_type");
+            return "refresh".equals(tokenType);
+        } catch (Exception e) {
+            return false;
+        }
+    }
 }
