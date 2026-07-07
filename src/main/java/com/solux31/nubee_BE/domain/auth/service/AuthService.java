@@ -10,6 +10,9 @@ import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
 import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.global.security.util.JwtUtil;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -114,12 +117,31 @@ public class AuthService {
 
     // RefreshToken 저장 공통 메서드
     private void saveRefreshToken(User user, String refreshToken) {
+        // SHA-256으로 해싱 후 저장
+        String hashedToken = hashToken(refreshToken);
+
         RefreshToken token = RefreshToken.builder()
                 .user(user)
-                .tokenHash(refreshToken)
+                .tokenHash(hashedToken)
                 .expiresAt(LocalDateTime.now().plusDays(7))
                 .build();
-
         refreshTokenRepository.save(token);
+    }
+
+    // SHA-256 해싱 메서드
+    private String hashToken(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("토큰 해싱 실패", e);
+        }
     }
 }
