@@ -2,6 +2,7 @@ package com.solux31.nubee_BE.global.security.filter;
 
 import com.solux31.nubee_BE.global.security.service.CustomUserDetailsService;
 import com.solux31.nubee_BE.global.security.util.JwtUtil;
+import com.solux31.nubee_BE.global.security.util.SecurityResponseUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -47,9 +48,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                 // INACTIVE 계정 차단 추가
                 if (!userDetails.isEnabled()) {
-                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                    response.setContentType("application/json;charset=UTF-8");
-                    response.getWriter().write("{\"message\": \"비활성화된 계정입니다.\"}");
+                    SecurityResponseUtil.writeErrorResponse(
+                            response,
+                            HttpServletResponse.SC_UNAUTHORIZED,
+                            "COMMON401_1",
+                            "비활성화된 계정입니다."
+                    );
                     return;
                 }
 
@@ -60,10 +64,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authToken);
 
             } catch (UsernameNotFoundException e) {
-                // 삭제된 유저 등 조회 실패 시 401 반환
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json;charset=UTF-8");
-                response.getWriter().write("{\"message\": \"존재하지 않는 유저입니다.\"}");
+                SecurityResponseUtil.writeErrorResponse(
+                        response,
+                        HttpServletResponse.SC_UNAUTHORIZED,
+                        "COMMON401_1",
+                        "존재하지 않는 유저입니다."
+                );
                 return;
             }
         }

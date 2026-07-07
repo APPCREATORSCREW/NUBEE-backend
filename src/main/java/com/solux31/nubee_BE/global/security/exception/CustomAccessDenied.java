@@ -1,5 +1,6 @@
 package com.solux31.nubee_BE.global.security.exception;
 
+import com.solux31.nubee_BE.global.security.util.SecurityResponseUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
@@ -15,8 +16,11 @@ public class CustomAccessDenied implements AccessDeniedHandler {
     public void handle(HttpServletRequest request,
                        HttpServletResponse response,
                        AccessDeniedException accessDeniedException) throws IOException {
-        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-        response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write("{\"message\": \"접근 권한이 없습니다.\"}");
+        SecurityResponseUtil.writeErrorResponse(
+                response,
+                HttpServletResponse.SC_FORBIDDEN,
+                "COMMON403_1",
+                "접근 권한이 없습니다."
+        );
     }
 }

@@ -1,5 +1,6 @@
 package com.solux31.nubee_BE.global.security.exception;
 
+import com.solux31.nubee_BE.global.security.util.SecurityResponseUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.AuthenticationException;
@@ -15,8 +16,11 @@ public class CustomEntryPoint implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest request,
                          HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write("{\"message\": \"인증이 필요합니다.\"}");
+        SecurityResponseUtil.writeErrorResponse(
+                response,
+                HttpServletResponse.SC_UNAUTHORIZED,
+                "COMMON401_1",
+                "인증이 필요합니다."
+        );
     }
 }
