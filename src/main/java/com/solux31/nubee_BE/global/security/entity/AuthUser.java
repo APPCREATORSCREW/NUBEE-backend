@@ -1,6 +1,7 @@
 package com.solux31.nubee_BE.global.security.entity;
 
 import com.solux31.nubee_BE.domain.auth.entity.User;
+import java.util.Optional;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -19,7 +20,7 @@ public class AuthUser implements UserDetails {
     public AuthUser(User user) {
         this.userId = user.getId();
         this.email = user.getEmail();
-        this.password = user.getPassword();
+        this.password = Optional.ofNullable(user.getPassword()).orElse(""); // null이면 빈 문자열
     }
 
     @Override
