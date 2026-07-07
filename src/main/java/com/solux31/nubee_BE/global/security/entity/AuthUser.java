@@ -1,6 +1,7 @@
 package com.solux31.nubee_BE.global.security.entity;
 
 import com.solux31.nubee_BE.domain.auth.entity.User;
+import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
 import java.util.Optional;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
@@ -16,11 +17,19 @@ public class AuthUser implements UserDetails {
     private final Long userId;
     private final String email;
     private final String password;
+    private final UserStatus status;
+
 
     public AuthUser(User user) {
         this.userId = user.getId();
         this.email = user.getEmail();
         this.password = Optional.ofNullable(user.getPassword()).orElse(""); // null이면 빈 문자열
+        this.status = user.getStatus();
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return status == UserStatus.ACTIVE;  // INACTIVE면 인증 차단
     }
 
     @Override
