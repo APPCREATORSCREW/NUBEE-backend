@@ -1,6 +1,7 @@
 package com.solux31.nubee_BE.domain.auth.service;
 
 import com.solux31.nubee_BE.domain.auth.dto.Request.LoginReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Request.PasswordChangeReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.SignupReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.TokenRefreshReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
@@ -187,5 +188,35 @@ public class AuthService {
         saveRefreshToken(user, newRefreshToken);
 
         return new TokenRefreshResDTO(newAccessToken, newRefreshToken);
+    }
+
+    // 비밀번호 변경
+    @Transactional
+    public void changePassword(String email, PasswordChangeReqDTO request) {
+
+        // 유저 조회
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+
+        // 현재 비밀번호 확인
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
+        }
+
+        // 새 비밀번호 확인
+        if (!request.getNewPassword().equals(request.getNewPasswordConfirm())) {
+            throw new IllegalArgumentException("새 비밀번호가 일치하지 않습니다.");
+        }
+
+        // 현재 비밀번호랑 새 비밀번호가 같으면 에러
+        if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("현재 비밀번호와 동일한 비밀번호로 변경할 수 없습니다.");
+        }
+
+        // 비밀번호 변경
+        user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
+
+        // 기존 Refresh Token 전체 삭제 (재로그인 유도)
+        refreshTokenRepository.deleteByUser(user);
     }
 }
