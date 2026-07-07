@@ -125,15 +125,20 @@ class AuthServiceTest {
     @DisplayName("만료된 Refresh Token으로 갱신 실패")
     void refresh_expiredToken() {
         // given
-        // 만료된 토큰으로 DB에 저장
+        // 기존 토큰 삭제
+        refreshTokenRepository.deleteAll();
+
+        // 새로운 토큰 생성 후 만료된 상태로 저장
+        String expiredRefreshToken = jwtUtil.generateRefreshToken(testUser.getEmail());
+
         RefreshToken expiredToken = RefreshToken.builder()
                 .user(testUser)
-                .tokenHash(hashToken(validRefreshToken))
+                .tokenHash(hashToken(expiredRefreshToken))
                 .expiresAt(LocalDateTime.now().minusDays(1))  // 이미 만료
                 .build();
         refreshTokenRepository.save(expiredToken);
 
-        TokenRefreshReqDTO request = new TokenRefreshReqDTO(validRefreshToken);
+        TokenRefreshReqDTO request = new TokenRefreshReqDTO(expiredRefreshToken);
 
         // when & then
         assertThatThrownBy(() -> authService.refresh(request))
