@@ -32,7 +32,7 @@ public class SignupReqDTO {
     @NotNull(message = "키워드 개수는 필수입니다.")
     @Min(value = 3, message = "키워드 개수는 최소 3개입니다.")
     @Max(value = 6, message = "키워드 개수는 최대 6개입니다.")
-    private int preferredKeywordCount;
+    private Integer preferredKeywordCount;
 
     @Email(message = "부모님 이메일 형식이 올바르지 않습니다.")
     private String parentEmail;
