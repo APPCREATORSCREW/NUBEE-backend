@@ -2,8 +2,10 @@ package com.solux31.nubee_BE.domain.auth.service;
 
 import com.solux31.nubee_BE.domain.auth.dto.Request.LoginReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.SignupReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Request.TokenRefreshReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.SignupResDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Response.TokenRefreshResDTO;
 import com.solux31.nubee_BE.domain.auth.entity.RefreshToken;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
@@ -143,5 +145,47 @@ public class AuthService {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("토큰 해싱 실패", e);
         }
+    }
+
+    // 토큰 갱신
+    @Transactional
+    public TokenRefreshResDTO refresh(TokenRefreshReqDTO request) {
+
+        String refreshToken = request.getRefreshToken();
+
+        // Refresh Token 유효성 검증
+        if (!jwtUtil.isTokenValid(refreshToken)) {
+            throw new IllegalArgumentException("유효하지 않은 Refresh Token입니다.");
+        }
+
+        // Refresh Token 타입 확인
+        if (!jwtUtil.isRefreshToken(refreshToken)) {
+            throw new IllegalArgumentException("Refresh Token이 아닙니다.");
+        }
+
+        // SHA-256 해싱 후 DB 조회
+        String hashedToken = hashToken(refreshToken);
+        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(hashedToken)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Refresh Token입니다."));
+
+        // 만료 여부 확인
+        if (storedToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("만료된 Refresh Token입니다.");
+        }
+
+        // 유저 조회
+        User user = storedToken.getUser();
+
+        // 기존 Refresh Token 삭제
+        refreshTokenRepository.delete(storedToken);
+
+        // 새 토큰 발급
+        String newAccessToken = jwtUtil.generateAccessToken(user.getEmail());
+        String newRefreshToken = jwtUtil.generateRefreshToken(user.getEmail());
+
+        // 새 Refresh Token 저장
+        saveRefreshToken(user, newRefreshToken);
+
+        return new TokenRefreshResDTO(newAccessToken, newRefreshToken);
     }
 }
