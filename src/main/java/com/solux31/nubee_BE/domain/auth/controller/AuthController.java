@@ -1,6 +1,7 @@
 package com.solux31.nubee_BE.domain.auth.controller;
 
 import com.solux31.nubee_BE.domain.auth.dto.Request.LoginReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Request.PasswordChangeReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.SignupReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.TokenRefreshReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
@@ -9,6 +10,7 @@ import com.solux31.nubee_BE.domain.auth.dto.Response.TokenRefreshResDTO;
 import com.solux31.nubee_BE.domain.auth.service.AuthService;
 import com.solux31.nubee_BE.global.apiPayload.ApiResponse;
 import com.solux31.nubee_BE.global.apiPayload.code.GeneralSuccessCode;
+import com.solux31.nubee_BE.global.security.entity.AuthUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -52,5 +54,14 @@ public class AuthController {
     @Operation(summary = "토큰 갱신", description = "Refresh Token으로 새로운 Access Token을 발급")
     public ApiResponse<TokenRefreshResDTO> refresh(@RequestBody @Valid TokenRefreshReqDTO request) {
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, authService.refresh(request));
+    }
+
+    // 비밀번호 변경
+    @PatchMapping("/password")
+    @Operation(summary = "비밀번호 변경", description = "로그인 상태에서 비밀번호를 변경")
+    public ApiResponse<String> changePassword(@AuthenticationPrincipal AuthUser authUser,
+                                              @RequestBody @Valid PasswordChangeReqDTO request) {
+        authService.changePassword(authUser.getUsername(), request);
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK, "비밀번호가 변경되었습니다.");
     }
 }
