@@ -9,6 +9,9 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
+@Table(name = "user_quiz_log", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_user_quiz", columnNames = {"userId", "quizId"})
+}) //제약 조건 추가, 같은 뮈즈 중복 제출 방지
 public class UserQuizLog {
 
     @Id
