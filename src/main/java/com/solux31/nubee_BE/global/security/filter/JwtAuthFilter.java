@@ -40,7 +40,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7); // "Bearer " 이후 토큰 추출
 
         // 토큰 유효성 검증
-        if (jwtUtil.isTokenValid(token)) {
+        if (jwtUtil.isTokenValid(token) && jwtUtil.isAccessToken(token)) {
             try {
                 String email = jwtUtil.getEmail(token);
                 UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);

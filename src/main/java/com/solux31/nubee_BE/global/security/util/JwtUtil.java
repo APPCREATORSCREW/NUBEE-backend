@@ -31,6 +31,7 @@ public class JwtUtil {
     public String generateAccessToken(String email) {
         return Jwts.builder()
                 .subject(email)
+                .claim("token_type", "access")
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + accessExpiration))
                 .signWith(getSigningKey())
@@ -41,10 +42,21 @@ public class JwtUtil {
     public String generateRefreshToken(String email) {
         return Jwts.builder()
                 .subject(email)
+                .claim("token_type", "refresh")
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + refreshExpiration))
                 .signWith(getSigningKey())
                 .compact();
+    }
+
+    // Access Token 여부 확인 메서드 추가
+    public boolean isAccessToken(String token) {
+        try {
+            String tokenType = (String) getClaims(token).get("token_type");
+            return "access".equals(tokenType);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     // 토큰에서 이메일 추출
