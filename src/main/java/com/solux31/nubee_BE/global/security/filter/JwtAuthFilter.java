@@ -45,6 +45,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 String email = jwtUtil.getEmail(token);
                 UserDetails userDetails = customUserDetailsService.loadUserByUsername(email);
 
+                // INACTIVE 계정 차단 추가
+                if (!userDetails.isEnabled()) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json;charset=UTF-8");
+                    response.getWriter().write("{\"message\": \"비활성화된 계정입니다.\"}");
+                    return;
+                }
+
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
