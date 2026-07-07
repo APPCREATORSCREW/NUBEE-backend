@@ -2,8 +2,10 @@ package com.solux31.nubee_BE.domain.auth.controller;
 
 import com.solux31.nubee_BE.domain.auth.dto.Request.LoginReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.SignupReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Request.TokenRefreshReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.SignupResDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Response.TokenRefreshResDTO;
 import com.solux31.nubee_BE.domain.auth.service.AuthService;
 import com.solux31.nubee_BE.global.apiPayload.ApiResponse;
 import com.solux31.nubee_BE.global.apiPayload.code.GeneralSuccessCode;
@@ -43,5 +45,12 @@ public class AuthController {
     public ApiResponse<String> logout(@AuthenticationPrincipal UserDetails userDetails) {
         authService.logout(userDetails.getUsername());
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, "로그아웃 되었습니다.");
+    }
+
+    // 토큰 갱신
+    @PostMapping("/token/refresh")
+    @Operation(summary = "토큰 갱신", description = "Refresh Token으로 새로운 Access Token을 발급")
+    public ApiResponse<TokenRefreshResDTO> refresh(@RequestBody @Valid TokenRefreshReqDTO request) {
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK, authService.refresh(request));
     }
 }
