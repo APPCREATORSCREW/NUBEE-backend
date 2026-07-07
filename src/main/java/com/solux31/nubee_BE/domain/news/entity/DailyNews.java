@@ -16,6 +16,9 @@ public class DailyNews {
     @GeneratedValue(strategy = GenerationType.IDENTITY) // DB가 ID를 1, 2, 3... 자동으로 올려줌
     private Long newsId;
 
+    @Column(nullable = false)
+    private Long keywordId;
+
     @Column(nullable = false, length = 100)
     private String title;
 
@@ -27,6 +30,9 @@ public class DailyNews {
 
     @Column(length = 500)
     private String imageUrl;
+
+    @Column(nullable = false, length = 1000) // URL은 길어질 수 있으므로 길이를 넉넉하게!
+    private String originalUrl; //원본 뉴스 기사 링크 URL
 
     private LocalDateTime createdAt;
 

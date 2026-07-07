@@ -27,6 +27,9 @@ public class UserQuizLog {
     @Column(nullable = false)
     private boolean isCorrect; // 맞췄는지 여부 (true/false)
 
+    @Column(nullable = false)
+    private boolean isCompleted;
+
     private LocalDateTime createdAt;
 
     @PrePersist

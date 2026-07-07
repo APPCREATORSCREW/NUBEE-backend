@@ -25,6 +25,9 @@ public class Quiz {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String question; // 퀴즈 문제 내용
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String optionsJson; //퀴즈 보기(옵션) json
+
     @Column(nullable = false)
     private int answer; // 정답 번호 (예: 1, 2, 3)
 
