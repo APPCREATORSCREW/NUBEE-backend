@@ -21,7 +21,7 @@ public class ApiResponse<T> {
     @JsonProperty("message")
     private final String message;
 
-    @JsonProperty("reuslt")
+    @JsonProperty("result")
     private T result;
 
     // 성공한 경우 (result 포함)
