@@ -4,6 +4,7 @@ import com.solux31.nubee_BE.global.apiPayload.ApiResponse;
 import com.solux31.nubee_BE.global.apiPayload.code.BaseErrorCode;
 import com.solux31.nubee_BE.global.apiPayload.code.GeneralErrorCode;
 import com.solux31.nubee_BE.global.apiPayload.exception.ProjectException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -49,6 +50,16 @@ public class GeneralExceptionAdvice {
         BaseErrorCode code = GeneralErrorCode.BAD_REQUEST;
         return ResponseEntity.status(code.getStatus())
                 .body(ApiResponse.onFailure(code, e.getMessage()));
+    }
+
+    // DB 유니크 제약 위반 예외 처리 (중복 이메일 등)
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<String>> handleDataIntegrityViolationException(
+            DataIntegrityViolationException e
+    ) {
+        BaseErrorCode code = GeneralErrorCode.CONFLICT;  // 409
+        return ResponseEntity.status(code.getStatus())
+                .body(ApiResponse.onFailure(code, "이미 사용 중인 이메일입니다."));
     }
 
     // 그 외의 정의되지 않은 모든 예외 처리
