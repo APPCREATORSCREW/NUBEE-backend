@@ -13,5 +13,11 @@ public class NaverNewsResponse {
         private String originallink;// DailyNews에 추가한 originalUrl로 들어갈 원본 링크
         private String description; // 뉴스 기사 본문 요약 (Gemini에게 던져줄 원문 원재료)
         private String pubDate;     // 기사 작성일
+
+        private String category; //네이버에서 제공하지 않기에 어떤 카테고리인지 기억해두기 위한 장치
+        // 카테고리를 강제로 세팅해주기 위한 Setter 메서드
+        public void setCategory(String category) {
+            this.category = category;
+        }
     }
 }

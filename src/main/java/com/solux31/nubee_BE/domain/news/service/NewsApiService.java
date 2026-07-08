@@ -25,8 +25,8 @@ public class NewsApiService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    //특정 카테고리 키워드로 최신 뉴스 1개를 긁어오는 메서드
-    public NaverNewsResponse.NaverNewsItem fetchSingleNewsByCategory(String categoryKeyword) {
+    //특정 카테고리 키워드로 최신 뉴스 2개를 긁어오는 메서드
+    public List<NaverNewsResponse.NaverNewsItem> fetchTwoNewsByCategory(String categoryKeyword) {
         // 1. 네이버 API는 헤더에 ID와 Secret을 요구
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Naver-Client-Id", clientId);
@@ -48,28 +48,29 @@ public class NewsApiService {
             ResponseEntity<NaverNewsResponse> response = restTemplate.exchange(
                     targetUri, HttpMethod.GET, entity, NaverNewsResponse.class);
 
-            if (response.getBody() != null && !response.getBody().getItems().isEmpty()) {
-                return response.getBody().getItems().get(0); // 가장 정확도 높은 1개 기사 리턴
+            if (response.getBody() != null) {
+                return response.getBody().getItems(); // 네이버가 준 2개짜리 리스트 리턴
             }
         } catch (Exception e) {
             System.out.println(categoryKeyword + " 뉴스 조회 중 에러 발생: " + e.getMessage());
         }
-        return null;
+        return new ArrayList<>(); // 에러 나면 빈 바구니 리턴해서 튕김 방지
     }
 
-    /**
-     * 새벽 배치가 호출할 마스터 메서드
-     * 설정된 8개 카테고리에서 각각 1개씩 총 8개의 뉴스를 수집
-     */
+    // 새벽 배치가 호출할 마스터 메서드, 설정된 4개 카테고리에서 각각 2개씩 총 8개의 뉴스를 수집
     public List<NaverNewsResponse.NaverNewsItem> fetchDailyEightNews() {
         // 4가지 카테고리 키워드를 리스트로 정의
         String[] categories = {"경제", "사회", "과학", "세계"};
         List<NaverNewsResponse.NaverNewsItem> totalEightNews = new ArrayList<>();
 
         for (String category : categories) {
-            NaverNewsResponse.NaverNewsItem newsItem = fetchSingleNewsByCategory(category);
-            if (newsItem != null) {
-                totalEightNews.add(newsItem);
+            List<NaverNewsResponse.NaverNewsItem> newsList = fetchTwoNewsByCategory(category);
+            if (newsList != null) {
+                for (NaverNewsResponse.NaverNewsItem item : newsList) {
+                    // 네이버에서 긁어온 직후, 카테고리 달아주기.
+                    item.setCategory(category);
+                    totalEightNews.add(item);
+                }
             }
         }
 
