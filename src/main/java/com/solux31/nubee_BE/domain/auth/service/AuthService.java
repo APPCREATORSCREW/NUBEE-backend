@@ -314,6 +314,11 @@ public class AuthService {
                         request.getEmail(), EmailVerificationType.PASSWORD_RESET)
                 .orElseThrow(() -> new IllegalArgumentException("이메일 인증이 완료되지 않았습니다."));
 
+        // 인증 만료 여부 검사
+        if (verification.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("인증이 만료되었습니다. 다시 인증해주세요.");
+        }
+
         // 새 비밀번호 확인
         if (!request.getNewPassword().equals(request.getNewPasswordConfirm())) {
             throw new IllegalArgumentException("새 비밀번호가 일치하지 않습니다.");
