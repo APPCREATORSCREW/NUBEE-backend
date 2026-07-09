@@ -39,6 +39,24 @@ public class EmailVerification {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "fail_count", nullable = false)
+    @Builder.Default
+    private int failCount = 0;
+
+    @Column(name = "send_count", nullable = false)
+    @Builder.Default
+    private int sendCount = 1;
+
+    // 실패 횟수 증가
+    public void increaseFailCount() {
+        this.failCount++;
+    }
+
+    // 발송 횟수 증가
+    public void increaseSendCount() {
+        this.sendCount++;
+    }
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

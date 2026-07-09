@@ -25,6 +25,7 @@ import com.solux31.nubee_BE.global.security.util.JwtUtil;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -243,9 +244,18 @@ public class AuthService {
             throw new IllegalArgumentException("이름이 일치하지 않습니다.");
         }
 
-        // 기존 인증 코드 삭제
-        emailVerificationRepository.deleteByEmailAndType(
-                request.getEmail(), EmailVerificationType.PASSWORD_RESET);
+        Optional<EmailVerification> existing = emailVerificationRepository
+                .findTopByEmailAndTypeOrderByCreatedAtDesc(
+                        request.getEmail(), EmailVerificationType.PASSWORD_RESET);
+
+        if (existing.isPresent()) {
+            if (existing.get().getSendCount() >= 5) {
+                throw new IllegalArgumentException("인증 코드 발송 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.");
+            }
+            existing.get().increaseSendCount();
+            emailVerificationRepository.deleteByEmailAndType(
+                    request.getEmail(), EmailVerificationType.PASSWORD_RESET);
+        }
 
         // 인증 코드 생성 및 저장
         String code = emailService.generateCode();
@@ -276,8 +286,14 @@ public class AuthService {
             throw new IllegalArgumentException("인증 코드가 만료되었습니다.");
         }
 
+        // 만료 확인 아래에 추가
+        if (verification.getFailCount() >= 5) {
+            throw new IllegalArgumentException("인증 코드 시도 횟수를 초과했습니다. 다시 발송해주세요.");
+        }
+
         // 코드 일치 확인
         if (!verification.getCode().equals(request.getCode())) {
+            verification.increaseFailCount();
             throw new IllegalArgumentException("인증 코드가 일치하지 않습니다.");
         }
 
@@ -314,9 +330,18 @@ public class AuthService {
     @Transactional
     public void sendParentVerifyEmail(ParentEmailSendReqDTO request) {
 
-        // 기존 인증 코드 삭제
-        emailVerificationRepository.deleteByEmailAndType(
-                request.getParentEmail(), EmailVerificationType.PARENT_VERIFY);
+        Optional<EmailVerification> existing = emailVerificationRepository
+                .findTopByEmailAndTypeOrderByCreatedAtDesc(
+                        request.getParentEmail(), EmailVerificationType.PARENT_VERIFY);
+
+        if (existing.isPresent()) {
+            if (existing.get().getSendCount() >= 5) {
+                throw new IllegalArgumentException("인증 코드 발송 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.");
+            }
+            existing.get().increaseSendCount();
+            emailVerificationRepository.deleteByEmailAndType(
+                    request.getParentEmail(), EmailVerificationType.PARENT_VERIFY);
+        }
 
         // 인증 코드 생성 및 저장
         String code = emailService.generateCode();
@@ -347,8 +372,13 @@ public class AuthService {
             throw new IllegalArgumentException("인증 코드가 만료되었습니다.");
         }
 
+        if (verification.getFailCount() >= 5) {
+            throw new IllegalArgumentException("인증 코드 시도 횟수를 초과했습니다. 다시 발송해주세요.");
+        }
+
         // 코드 일치 확인
         if (!verification.getCode().equals(request.getCode())) {
+            verification.increaseFailCount();
             throw new IllegalArgumentException("인증 코드가 일치하지 않습니다.");
         }
 
