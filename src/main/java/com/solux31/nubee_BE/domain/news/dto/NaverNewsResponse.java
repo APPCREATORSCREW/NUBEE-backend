@@ -5,12 +5,14 @@ import java.util.List;
 
 @Getter
 public class NaverNewsResponse {
+
     private List<NaverNewsItem> items; // 검색 결과 기사들이 담기는 리스트
 
     @Getter
     public static class NaverNewsItem {
         private String title;       // 뉴스 기사 제목
-        private String originallink;// DailyNews에 추가한 originalUrl로 들어갈 원본 링크
+        private String link;// DailyNews에 추가한 originalUrl로 들어갈 네이버 뉴스 링크
+        // 원본 링크는 originallink, 크롤링 위해 네이버 뉴스로 연결
         private String description; // 뉴스 기사 본문 요약 (Gemini에게 던져줄 원문 원재료)
         private String pubDate;     // 기사 작성일
 

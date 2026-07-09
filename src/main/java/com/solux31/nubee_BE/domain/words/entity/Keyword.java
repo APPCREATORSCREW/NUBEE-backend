@@ -25,4 +25,8 @@ public class Keyword {
 
     @Column(nullable = false)
     private Long newsId; // 이 단어가 속한 뉴스 ID (DailyNews와 연결고리)
+
+    public void updateExplanation(String explanation) {
+        this.explanation = explanation;
+    }
 }
