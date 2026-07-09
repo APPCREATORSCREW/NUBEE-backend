@@ -237,12 +237,11 @@ public class AuthService {
     public void sendPasswordResetEmail(PasswordResetEmailReqDTO request) {
 
         // 이름 + 이메일로 유저 확인
+        // 존재하지 않거나 이름 불일치 모두 같은 메시지 반환 (보안)
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이메일입니다."));
+                .filter(u -> u.getUsername().equals(request.getUsername()))
+                .orElseThrow(() -> new IllegalArgumentException("이름 또는 이메일이 일치하지 않습니다."));
 
-        if (!user.getUsername().equals(request.getUsername())) {
-            throw new IllegalArgumentException("이름이 일치하지 않습니다.");
-        }
 
         Optional<EmailVerification> existing = emailVerificationRepository
                 .findTopByEmailAndTypeOrderByCreatedAtDesc(
