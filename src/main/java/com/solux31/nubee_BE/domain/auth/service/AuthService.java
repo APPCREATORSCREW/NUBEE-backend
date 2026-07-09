@@ -67,9 +67,22 @@ public class AuthService {
         int age = Period.between(request.getBirthDate(), LocalDate.now()).getYears();
         boolean isUnder14 = age < 14;
 
-        // 만 14세 미만인데 부모님 이메일 없으면 에러
-        if (isUnder14 && (request.getParentEmail() == null || request.getParentEmail().isBlank())) {
-            throw new IllegalArgumentException("만 14세 미만은 부모님 이메일 인증이 필요합니다.");
+        // 만 14세 미만 처리
+        boolean isParentVerified = false;
+        if (isUnder14) {
+            if (request.getParentEmail() == null || request.getParentEmail().isBlank()) {
+                throw new IllegalArgumentException("만 14세 미만은 부모님 이메일 인증이 필요합니다.");
+            }
+
+            // 부모님 이메일 인증 완료 여부 확인
+            isParentVerified = emailVerificationRepository
+                    .findTopByEmailAndTypeAndIsVerifiedTrueOrderByCreatedAtDesc(
+                            request.getParentEmail(), EmailVerificationType.PARENT_VERIFY)
+                    .isPresent();
+
+            if (!isParentVerified) {
+                throw new IllegalArgumentException("부모님 이메일 인증이 완료되지 않았습니다.");
+            }
         }
 
         // User 생성
@@ -80,7 +93,7 @@ public class AuthService {
                 .birthDate(request.getBirthDate())
                 .preferredKeywordCount(request.getPreferredKeywordCount())
                 .parentEmail(isUnder14 ? request.getParentEmail() : null)
-                .isParentVerified(false)
+                .isParentVerified(isParentVerified)  // 수정 ✅
                 .currentSkin("DEFAULT")
                 .status(UserStatus.ACTIVE)
                 .build();
