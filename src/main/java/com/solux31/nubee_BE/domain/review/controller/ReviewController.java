@@ -18,12 +18,12 @@ public class ReviewController {
 
     @GetMapping("/history")
     public ResponseEntity<ReviewResDTO.ReviewResponse> getReviewNews(
-            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @AuthenticationPrincipal AuthUser authUser,
             @RequestParam String category,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        Long userId = userDetails.getUserId();
+        Long userId = authUser.getUserId();
         ReviewResDTO.ReviewResponse response =
                 reviewService.getReviewNews(userId, category, page, size);
         return ResponseEntity.ok(response);
