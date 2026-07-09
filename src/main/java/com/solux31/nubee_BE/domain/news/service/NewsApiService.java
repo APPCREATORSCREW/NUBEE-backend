@@ -37,9 +37,14 @@ public class NewsApiService {
 
         // 2. URL 조립 (카테고리 키워드로 검색, 정확도순 정렬, 2개씩 가져오기)
         URI targetUri = UriComponentsBuilder.fromUriString(apiUrl)
+                .build() // 먼저 URI 틀 마련
+                .expand() // 혹시 모를 템플릿 확장을 방지
+                .toUri();
+
+        targetUri = UriComponentsBuilder.fromUri(targetUri)
                 .queryParam("query", categoryKeyword)
-                .queryParam("display", 2) // 각 카테고리에 대해 2개씩
-                .queryParam("sort", "sim") // 관련도 높은 뉴스 검색
+                .queryParam("display", 2)
+                .queryParam("sort", "sim")
                 .build()
                 .encode()
                 .toUri();
