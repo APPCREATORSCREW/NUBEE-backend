@@ -22,6 +22,9 @@ public class DailyNews {
     @Column(nullable = false, length = 100)
     private String title;
 
+    @Column(nullable = false)
+    private String mainKeyword;
+
     @Column(nullable = false, columnDefinition = "TEXT") // 본문은 기니까 TEXT 타입으로
     private String summary; // Gemini가 요약해 준 어린이용 요약문
 
