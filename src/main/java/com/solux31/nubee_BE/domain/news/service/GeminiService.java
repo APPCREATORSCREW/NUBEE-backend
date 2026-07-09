@@ -24,36 +24,35 @@ public class GeminiService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     /**
-     * 프롬프트를 받아 Gemini API를 호출하고 텍스트 응답을 반환
-     *
-     * @param prompt AI에게 보낼 지시문(프롬프트)
-     * @return Gemini가 응답한 순수 문자열(JSON 텍스트)
+     * 프롬프트를 받아 스노우챗 API Gateway(OpenAI 호환 포맷)를 호출하고 텍스트 응답을 반환
      */
     public String callGemini(String prompt) {
-        // 1. 요청 URL 조립 (엔드포인트 뒤에 쿼리 파라미터로 API Key 부착)
-        String requestUrl = apiUrl + "?key=" + apiKey;
+        // 1. 규격에 맞춰 순수 Base URL 엔드포인트 그대로 사용 (뒤에 ?key= 제거)
+        String requestUrl = apiUrl;
 
-        // 2. GeminiRequest DTO 활용 (모델명은 URL에서 정의하므로 임시 값 세팅)
+        // 2. 하드코딩 대신 yml의 모델명(gemini-1.5-flash) 주입하여 요청 객체 생성
         GeminiRequest request = new GeminiRequest(modelName, prompt);
 
-        // 3. HTTP Header 설정 (JSON 통신)
+        // 3. HTTP Header 설정
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+
+        // 3. OpenAI 스타일의 Bearer 토큰 인증 헤더 주입!
+        headers.set("Authorization", "Bearer " + apiKey);
 
         HttpEntity<GeminiRequest> entity = new HttpEntity<>(request, headers);
 
         try {
-            // 4. RestTemplate을 이용한 API 호출 및 응답 매핑
+            // 4. 게이트웨이 엔드포인트로 POST 요청 송신
             GeminiResponse response = restTemplate.postForObject(requestUrl, entity, GeminiResponse.class);
 
             if (response != null) {
                 return response.getAnswerText();
             }
-
-            throw new RuntimeException("Gemini 응답이 비어 있습니다.");
+            throw new RuntimeException("API Gateway 응답이 비어 있습니다.");
 
         } catch (Exception e) {
-            System.err.println("❌ Gemini API 호출 중 오류 발생: " + e.getMessage());
+            System.err.println("❌ API Gateway 호출 중 오류 발생: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
