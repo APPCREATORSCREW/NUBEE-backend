@@ -16,8 +16,8 @@ public class WordService {
     private final KeywordRepository keywordRepository;
 
     /**
-     * [1단계 연동] 메인 키워드와 서브 키워드들을 받아 DB에 중복 없이 저장합니다.
-     * 엔티티의 nullable = false 제약 조건을 충족하기 위해 newsId를 인자로 받습니다.
+     * [1단계 연동] 메인 키워드와 서브 키워드들을 받아 DB에 중복 없이 저장
+     * 엔티티의 nullable = false 제약 조건을 충족하기 위해 newsId를 인자로 받음
      */
     @Transactional
     public void saveKeywords(String mainKeywordName, List<String> subKeywordNames, Long newsId) {
@@ -34,7 +34,7 @@ public class WordService {
     }
 
     /**
-     * [2단계 연동] Gemini가 새로 생성한 마스터 설명(뜻)을 단어 테이블에 업데이트합니다.
+     * [2단계 연동] Gemini가 새로 생성한 마스터 설명(뜻)을 단어 테이블에 업데이트
      */
     @Transactional
     public void updateKeywordExplanations(String keywordName, String explanation) {
@@ -56,7 +56,6 @@ public class WordService {
         Optional<Keyword> existingKeyword = keywordRepository.findByWord(wordName);
 
         if (existingKeyword.isEmpty()) {
-            // Keyword 엔티티의 실제 필드명(word 등)과 builder 규격을 일치시켰습니다.
             Keyword newKeyword = Keyword.builder()
                     .word(wordName)
                     .explanation("")     // 1단계 시점에는 설명이 아직 없으므로 빈 문자열(nullable=false 대비)

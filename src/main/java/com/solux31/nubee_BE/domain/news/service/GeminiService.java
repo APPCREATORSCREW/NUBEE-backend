@@ -12,11 +12,14 @@ import org.springframework.web.client.RestTemplate;
 @Service
 public class GeminiService {
 
-    @Value("${gemini.api.url}")
+    @Value("${llm.gateway.url}")
     private String apiUrl;
 
-    @Value("${gemini.api.key}")
+    @Value("${llm.gateway.key}")
     private String apiKey;
+
+    @Value("${llm.gateway.model}")
+    private String modelName;
 
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -31,7 +34,7 @@ public class GeminiService {
         String requestUrl = apiUrl + "?key=" + apiKey;
 
         // 2. GeminiRequest DTO 활용 (모델명은 URL에서 정의하므로 임시 값 세팅)
-        GeminiRequest request = new GeminiRequest("gemini-1.5-flash", prompt);
+        GeminiRequest request = new GeminiRequest(modelName, prompt);
 
         // 3. HTTP Header 설정 (JSON 통신)
         HttpHeaders headers = new HttpHeaders();
