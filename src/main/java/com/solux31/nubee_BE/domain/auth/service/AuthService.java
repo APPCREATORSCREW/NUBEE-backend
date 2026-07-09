@@ -324,6 +324,9 @@ public class AuthService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이메일입니다."));
         user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
 
+        // 기존 Refresh Token 전체 삭제 (재로그인 유도)
+        refreshTokenRepository.deleteByUser(user);
+
         // 인증 코드 삭제
         emailVerificationRepository.deleteByEmailAndType(
                 request.getEmail(), EmailVerificationType.PASSWORD_RESET);
