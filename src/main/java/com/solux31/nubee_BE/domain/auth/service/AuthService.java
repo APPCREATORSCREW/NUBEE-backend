@@ -21,12 +21,14 @@ import com.solux31.nubee_BE.domain.auth.repository.EmailVerificationRepository;
 import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.global.email.EmailService;
+import com.solux31.nubee_BE.global.email.EmailVerificationEvent;
 import com.solux31.nubee_BE.global.security.util.JwtUtil;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +47,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final EmailVerificationRepository emailVerificationRepository;
     private final EmailService emailService;
+    private final ApplicationEventPublisher eventPublisher;
 
     // 회원가입
     @Transactional
@@ -267,8 +270,9 @@ public class AuthService {
                 .build();
         emailVerificationRepository.save(verification);
 
-        // 이메일 발송
-        emailService.sendPasswordResetEmail(request.getEmail(), code);
+        // 이메일 발송 직접 호출 대신 이벤트 발행
+        eventPublisher.publishEvent(
+                new EmailVerificationEvent(request.getEmail(), code, EmailVerificationType.PASSWORD_RESET));
     }
 
     // 비밀번호 찾기 - 인증번호 확인
@@ -354,7 +358,8 @@ public class AuthService {
         emailVerificationRepository.save(verification);
 
         // 이메일 발송
-        emailService.sendParentVerifyEmail(request.getParentEmail(), code);
+        eventPublisher.publishEvent(
+                new EmailVerificationEvent(request.getParentEmail(), code, EmailVerificationType.PARENT_VERIFY));
     }
 
     // 부모님 이메일 인증 확인
