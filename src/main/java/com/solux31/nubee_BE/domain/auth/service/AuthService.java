@@ -265,11 +265,12 @@ public class AuthService {
                 .findTopByEmailAndTypeOrderByCreatedAtDesc(
                         request.getEmail(), EmailVerificationType.PASSWORD_RESET);
 
+        int nextSendCount = 1;
         if (existing.isPresent()) {
             if (existing.get().getSendCount() >= 5) {
                 throw new IllegalArgumentException("인증 코드 발송 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.");
             }
-            existing.get().increaseSendCount();
+            nextSendCount = existing.get().getSendCount() + 1;
             emailVerificationRepository.deleteByEmailAndType(
                     request.getEmail(), EmailVerificationType.PASSWORD_RESET);
         }
@@ -282,6 +283,7 @@ public class AuthService {
                 .type(EmailVerificationType.PASSWORD_RESET)
                 .expiresAt(LocalDateTime.now().plusMinutes(5))
                 .isVerified(false)
+                .sendCount(nextSendCount)
                 .build();
         emailVerificationRepository.save(verification);
 
@@ -360,11 +362,12 @@ public class AuthService {
                 .findTopByEmailAndTypeOrderByCreatedAtDesc(
                         request.getParentEmail(), EmailVerificationType.PARENT_VERIFY);
 
+        int nextSendCount = 1;
         if (existing.isPresent()) {
             if (existing.get().getSendCount() >= 5) {
                 throw new IllegalArgumentException("인증 코드 발송 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.");
             }
-            existing.get().increaseSendCount();
+            nextSendCount = existing.get().getSendCount() + 1;
             emailVerificationRepository.deleteByEmailAndType(
                     request.getParentEmail(), EmailVerificationType.PARENT_VERIFY);
         }
@@ -377,6 +380,7 @@ public class AuthService {
                 .type(EmailVerificationType.PARENT_VERIFY)
                 .expiresAt(LocalDateTime.now().plusMinutes(5))
                 .isVerified(false)
+                .sendCount(nextSendCount)
                 .build();
         emailVerificationRepository.save(verification);
 
