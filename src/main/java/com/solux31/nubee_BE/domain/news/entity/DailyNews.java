@@ -16,7 +16,7 @@ public class DailyNews {
     @GeneratedValue(strategy = GenerationType.IDENTITY) // DB가 ID를 1, 2, 3... 자동으로 올려줌
     private Long newsId;
 
-    @Column(nullable = false)
+    @Column(nullable = true) //수정
     private Long keywordId;
 
     @Column(nullable = false, length = 100)

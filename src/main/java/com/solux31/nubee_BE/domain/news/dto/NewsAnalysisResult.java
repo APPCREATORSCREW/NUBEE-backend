@@ -1,6 +1,7 @@
 package com.solux31.nubee_BE.domain.news.dto;
 
 //뉴스 추출 1단계
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 import java.util.List;
@@ -16,6 +17,7 @@ public class NewsAnalysisResult {
     public static class NewsQuiz {
         private String question;
         private List<String> options;   // 4지선다 보기 배열 (ex: ["보기1", "보기2", ...])
+
         private int answer;             // 정답 인덱스 (0~3)
         private String explanation;
     }

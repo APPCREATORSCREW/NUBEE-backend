@@ -38,6 +38,10 @@ public class NewsService {
         // 0. 원래 이름인 NaverNewsItem 리스트를 그대로 받아옵니다.
         List<NaverNewsResponse.NaverNewsItem> naverNewsList = newsApiService.fetchDailyEightNews();
 
+        if (naverNewsList != null && naverNewsList.size() > 1) {
+            naverNewsList = naverNewsList.subList(0, 1);
+        }
+
         List<NewsAnalysisResult> analysisResults = new ArrayList<>();
         List<String> mainKeywords = new ArrayList<>();
 
@@ -70,8 +74,11 @@ public class NewsService {
                 try {
                     // [3단계 선행] 외래키(newsId) 제약조건 충족을 위해 DailyNews 엔티티 먼저 빌드 및 저장
                     DailyNews news = DailyNews.builder()
+                            .title(naverNews.getTitle())
+                            .originalUrl(naverNews.getLink())
                             .summary(result.getSummary())
                             .mainKeyword(result.getMainKeyword())
+                            .category(naverNews.getCategory())
                             .build();
                     DailyNews savedNews = dailyNewsRepository.save(news);
 
@@ -148,7 +155,7 @@ public class NewsService {
                         "  \"newsQuiz\": {\n" +
                         "    \"question\": \"뉴스 내용과 일치하는 문제는 무엇일까요?\",\n" +
                         "    \"options\": [\"보기1\", \"보기2\", \"보기3\", \"보기4\"],\n" +
-                        "    \"answerIdx\": 0,\n" +
+                        "    \"answer\": 1,\n" +
                         "    \"explanation\": \"초등학생이 이해하기 쉬운 정답 해설\"\n" +
                         "  }\n" +
                         "}\n\n" +
