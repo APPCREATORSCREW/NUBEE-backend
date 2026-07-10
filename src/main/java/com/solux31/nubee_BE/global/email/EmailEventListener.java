@@ -2,6 +2,7 @@ package com.solux31.nubee_BE.global.email;
 
 import com.solux31.nubee_BE.domain.auth.enums.EmailVerificationType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -12,6 +13,7 @@ public class EmailEventListener {
 
     private final EmailService emailService;
 
+    @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleEmailVerificationEvent(EmailVerificationEvent event) {
         if (event.getType() == EmailVerificationType.PASSWORD_RESET) {
