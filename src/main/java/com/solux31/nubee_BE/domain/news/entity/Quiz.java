@@ -14,7 +14,7 @@ public class Quiz {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long quizId;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private Long newsId; // 어떤 뉴스 기사에 딸린 퀴즈인지
 
     private Long keywordId; // 단어 퀴즈일 경우 어떤 단어의 퀴즈인지 (뉴스 퀴즈면 null 가능)

@@ -37,13 +37,23 @@ public class WordService {
      * [2단계 연동] Gemini가 새로 생성한 마스터 설명(뜻)을 단어 테이블에 업데이트
      */
     @Transactional
-    public void updateKeywordExplanations(String keywordName, String explanation) {
-        // 엔티티의 실제 필드명에 맞추어 findByWord로 수정
-        keywordRepository.findByWord(keywordName)
-                .ifPresent(keyword -> {
-                    // 엔티티 내부에 작성하신 업데이트 비즈니스 메서드를 호출
-                    keyword.updateExplanation(explanation);
-                });
+    public Long updateKeywordExplanations(String keywordName, String explanation) {
+        // 1. keywordRepository를 사용해 단어를 찾음
+        Optional<Keyword> keywordOpt = keywordRepository.findByWord(keywordName);
+
+        if (keywordOpt.isPresent()) {
+            Keyword keyword = keywordOpt.get();
+
+            // 2. 엔티티 내부에 작성한 업데이트 비즈니스 메서드를 호출
+            keyword.updateExplanation(explanation);
+
+            // 3. 퀴즈 저장할 때 쓸 수 있도록, 이 단어의 고유 ID를 반환(return)
+            return keyword.getKeywordId();
+        }
+
+        // 4. 만약 단어를 찾지 못했다면 null을 반환
+        System.err.println("⚠️ [경고] updateKeywordExplanations 도중 단어를 찾지 못했습니다: " + keywordName);
+        return null;
     }
 
     /**
