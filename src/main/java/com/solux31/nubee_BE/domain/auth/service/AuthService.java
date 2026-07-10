@@ -75,9 +75,11 @@ public class AuthService {
             }
 
             // 부모님 이메일 인증 완료 여부 확인
-            isParentVerified = emailVerificationRepository
+            Optional<EmailVerification> parentVerification = emailVerificationRepository
                     .findTopByEmailAndTypeAndIsVerifiedTrueOrderByCreatedAtDesc(
-                            request.getParentEmail(), EmailVerificationType.PARENT_VERIFY)
+                            request.getParentEmail(), EmailVerificationType.PARENT_VERIFY);
+            isParentVerified = parentVerification
+                    .filter(v -> v.getExpiresAt().isAfter(LocalDateTime.now()))
                     .isPresent();
 
             if (!isParentVerified) {
@@ -93,7 +95,7 @@ public class AuthService {
                 .birthDate(request.getBirthDate())
                 .preferredKeywordCount(request.getPreferredKeywordCount())
                 .parentEmail(isUnder14 ? request.getParentEmail() : null)
-                .isParentVerified(isParentVerified)  // 수정 ✅
+                .isParentVerified(isParentVerified)
                 .currentSkin("DEFAULT")
                 .status(UserStatus.ACTIVE)
                 .build();
