@@ -25,15 +25,21 @@ public class KakaoUserService {
     @Transactional
     public KakaoLoginResDTO processKakaoLogin(String kakaoId, String nickname, String email) {
 
-        boolean isNew = !userRepository.existsByKakaoId(kakaoId);
+        // 기존 유저 조회 또는 신규 유저 생성
+        final boolean[] isNewArr = {false}; // 배열로 람다 안에서 수정 가능하게
 
         User user = userRepository.findByKakaoId(kakaoId)
                 .orElseGet(() -> userRepository.findByEmail(email)
                         .map(existingUser -> {
                             existingUser.updateKakaoId(kakaoId);
-                            return existingUser;
+                            return existingUser; // 기존 계정 → isNew = false
                         })
-                        .orElseGet(() -> createKakaoUser(kakaoId, nickname, email)));
+                        .orElseGet(() -> {
+                            isNewArr[0] = true;  // 신규 생성일 때만 true
+                            return createKakaoUser(kakaoId, nickname, email);
+                        }));
+
+        boolean isNew = isNewArr[0];
 
         refreshTokenRepository.deleteByUser(user);
 
