@@ -103,7 +103,16 @@ public class KakaoAuthService {
 
         // 기존 유저 조회 또는 신규 유저 생성
         User user = userRepository.findByKakaoId(kakaoId)
-                .orElseGet(() -> createKakaoUser(kakaoId, nickname, email));
+                .orElseGet(() -> {
+                    // 같은 이메일로 가입된 계정이 있으면 kakaoId 연결
+                    return userRepository.findByEmail(email)
+                            .map(existingUser -> {
+                                existingUser.updateKakaoId(kakaoId);
+                                return existingUser;
+                            })
+                            // 없으면 신규 생성
+                            .orElseGet(() -> createKakaoUser(kakaoId, nickname, email));
+                });
 
         // 기존 RefreshToken 삭제
         refreshTokenRepository.deleteByUser(user);

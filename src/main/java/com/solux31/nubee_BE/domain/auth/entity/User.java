@@ -25,7 +25,7 @@ public class User {
     @Column(name = "user_id")
     private Long id;
 
-    @Column(name = "kakao_id")
+    @Column(name = "kakao_id", unique = true)
     private String kakaoId;
 
     @Column(name = "username", nullable = false)
@@ -114,5 +114,10 @@ public class User {
     // 비밀번호 변경
     public void updatePassword(String password) {
         this.password = password;
+    }
+
+    // 같은 이메일로 가입된 계정이 있으면 kakaoId 연결
+    public void updateKakaoId(String kakaoId) {
+        this.kakaoId = kakaoId;
     }
 }
