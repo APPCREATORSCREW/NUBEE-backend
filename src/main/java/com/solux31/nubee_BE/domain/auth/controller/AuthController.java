@@ -24,6 +24,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -136,18 +138,18 @@ public class AuthController {
                               @RequestParam(required = false) String error,
                               HttpServletResponse response, HttpSession session) throws IOException {
         if (error != null) {
-            response.sendRedirect(frontUrl + "/callback?error=" + error);
+            response.sendRedirect(frontUrl + "/callback?error=" + URLEncoder.encode("카카오 로그인에 실패했습니다.", StandardCharsets.UTF_8));
             return;
         }
 
         try {
             KakaoLoginResDTO result = kakaoAuthService.kakaoLogin(code, state, session);
             response.sendRedirect(frontUrl + "/callback"
-                    + "?access_token=" + result.getAccessToken()
-                    + "&refresh_token=" + result.getRefreshToken()
+                    + "?access_token=" + URLEncoder.encode(result.getAccessToken(), StandardCharsets.UTF_8)
+                    + "&refresh_token=" + URLEncoder.encode(result.getRefreshToken(), StandardCharsets.UTF_8)
                     + "&is_new=" + result.isNew());
         } catch (Exception e) {
-            response.sendRedirect(frontUrl + "/callback?error=" + e.getMessage());
+            response.sendRedirect(frontUrl + "/callback?error="+ URLEncoder.encode("카카오 로그인 처리 중 오류가 발생했습니다.", StandardCharsets.UTF_8));
         }
     }
 }
