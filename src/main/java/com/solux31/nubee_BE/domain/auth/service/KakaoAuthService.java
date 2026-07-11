@@ -8,6 +8,8 @@ import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.global.security.util.JwtUtil;
+import jakarta.servlet.http.HttpSession;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -42,17 +44,28 @@ public class KakaoAuthService {
     private String apiUrl;
 
     // 카카오 로그인 URL 생성
-    public String getKakaoLoginUrl() {
+    public String getKakaoLoginUrl(HttpSession session) {
+        String state = UUID.randomUUID().toString();
+        session.setAttribute("kakao_state", state);
+
         return authUrl + "/oauth/authorize"
                 + "?client_id=" + clientId
                 + "&redirect_uri=" + redirectUri
-                + "&response_type=code";
+                + "&response_type=code"
+                + "&state=" + state;;
     }
 
     // 카카오 로그인 처리
     @SuppressWarnings("unchecked")
     @Transactional
-    public KakaoLoginResDTO kakaoLogin(String code) {
+    public KakaoLoginResDTO kakaoLogin(String code, String state, HttpSession session) {
+        // state 검증
+        String savedState = (String) session.getAttribute("kakao_state");
+        if (savedState == null || !savedState.equals(state)) {
+            throw new IllegalArgumentException("유효하지 않은 state 값입니다.");
+        }
+        session.removeAttribute("kakao_state");
+
         // 1. 인가 코드로 카카오 액세스 토큰 발급
         String kakaoAccessToken = getKakaoAccessToken(code);
 

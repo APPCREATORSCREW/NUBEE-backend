@@ -21,6 +21,7 @@ import com.solux31.nubee_BE.global.security.entity.AuthUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
@@ -122,8 +123,8 @@ public class AuthController {
     // 카카오 로그인 시작
     @GetMapping("/kakao")
     @Operation(summary = "카카오 로그인 시작", description = "카카오 인증 페이지로 리다이렉트합니다.")
-    public void kakaoLogin(HttpServletResponse response) throws IOException {
-        String kakaoLoginUrl = kakaoAuthService.getKakaoLoginUrl();
+    public void kakaoLogin(HttpServletResponse response, HttpSession session) throws IOException {
+        String kakaoLoginUrl = kakaoAuthService.getKakaoLoginUrl(session);
         response.sendRedirect(kakaoLoginUrl);
     }
 
@@ -131,15 +132,16 @@ public class AuthController {
     @GetMapping("/kakao/callback")
     @Operation(summary = "카카오 로그인 콜백", description = "카카오 OAuth 인증 후 콜백을 처리합니다.")
     public void kakaoCallback(@RequestParam(required = false) String code,
+                              @RequestParam(required = false) String state,
                               @RequestParam(required = false) String error,
-                              HttpServletResponse response) throws IOException {
+                              HttpServletResponse response, HttpSession session) throws IOException {
         if (error != null) {
             response.sendRedirect(frontUrl + "/callback?error=" + error);
             return;
         }
 
         try {
-            KakaoLoginResDTO result = kakaoAuthService.kakaoLogin(code);
+            KakaoLoginResDTO result = kakaoAuthService.kakaoLogin(code, state, session);
             response.sendRedirect(frontUrl + "/callback"
                     + "?access_token=" + result.getAccessToken()
                     + "&refresh_token=" + result.getRefreshToken()
