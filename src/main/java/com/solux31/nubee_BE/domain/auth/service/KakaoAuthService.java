@@ -1,5 +1,6 @@
 package com.solux31.nubee_BE.domain.auth.service;
 
+import com.solux31.nubee_BE.domain.auth.dto.Response.KakaoLoginResDTO;
 import com.solux31.nubee_BE.domain.auth.entity.RefreshToken;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
@@ -51,7 +52,7 @@ public class KakaoAuthService {
     // 카카오 로그인 처리
     @SuppressWarnings("unchecked")
     @Transactional
-    public LoginResDTO kakaoLogin(String code) {
+    public KakaoLoginResDTO kakaoLogin(String code) {
         // 1. 인가 코드로 카카오 액세스 토큰 발급
         String kakaoAccessToken = getKakaoAccessToken(code);
 
@@ -66,6 +67,7 @@ public class KakaoAuthService {
         String email = (String) kakaoAccount.get("email");
 
         // 4. 기존 유저 조회 또는 신규 유저 생성
+        boolean isNew = !userRepository.existsByKakaoId(kakaoId); // 유저를 생성하기 전에 존재 여부를 확인
         User user = userRepository.findByKakaoId(kakaoId)
                 .orElseGet(() -> createKakaoUser(kakaoId, nickname, email));  // email 추가
 
@@ -79,7 +81,7 @@ public class KakaoAuthService {
         // 7. RefreshToken 저장
         saveRefreshToken(user, refreshToken);
 
-        return new LoginResDTO(accessToken, refreshToken);
+        return new KakaoLoginResDTO(accessToken, refreshToken, isNew);
     }
 
     // 카카오 액세스 토큰 발급
