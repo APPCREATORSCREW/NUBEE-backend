@@ -9,6 +9,7 @@ import com.solux31.nubee_BE.domain.auth.dto.Request.PasswordResetEmailReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.PasswordResetVerifyReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.SignupReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.TokenRefreshReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Response.KakaoLoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.SignupResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.TokenRefreshResDTO;
@@ -23,6 +24,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -114,6 +116,9 @@ public class AuthController {
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, "인증이 완료되었습니다.");
     }
 
+    @Value("${front.url}")
+    private String frontUrl;
+
     // 카카오 로그인 시작
     @GetMapping("/kakao")
     @Operation(summary = "카카오 로그인 시작", description = "카카오 인증 페이지로 리다이렉트합니다.")
@@ -125,7 +130,22 @@ public class AuthController {
     // 카카오 로그인 콜백
     @GetMapping("/kakao/callback")
     @Operation(summary = "카카오 로그인 콜백", description = "카카오 OAuth 인증 후 콜백을 처리합니다.")
-    public ApiResponse<LoginResDTO> kakaoCallback(@RequestParam String code) {
-        return ApiResponse.onSuccess(GeneralSuccessCode.OK, kakaoAuthService.kakaoLogin(code));
+    public void kakaoCallback(@RequestParam(required = false) String code,
+                              @RequestParam(required = false) String error,
+                              HttpServletResponse response) throws IOException {
+        if (error != null) {
+            response.sendRedirect(frontUrl + "/callback?error=" + error);
+            return;
+        }
+
+        try {
+            KakaoLoginResDTO result = kakaoAuthService.kakaoLogin(code);
+            response.sendRedirect(frontUrl + "/callback"
+                    + "?access_token=" + result.getAccessToken()
+                    + "&refresh_token=" + result.getRefreshToken()
+                    + "&is_new=" + result.isNew());
+        } catch (Exception e) {
+            response.sendRedirect(frontUrl + "/callback?error=" + e.getMessage());
+        }
     }
 }
