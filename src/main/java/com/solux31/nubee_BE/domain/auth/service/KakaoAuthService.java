@@ -74,10 +74,21 @@ public class KakaoAuthService {
 
         // 3. 유저 정보 추출
         String kakaoId = String.valueOf(userInfo.get("id"));
-        Map<String, Object> kakaoAccount = (Map<String, Object>) userInfo.get("kakao_account");
-        Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
-        String nickname = (String) profile.get("nickname");
-        String email = (String) kakaoAccount.get("email");
+        Map<String, Object> kakaoAccount = userInfo.get("kakao_account") != null
+                ? (Map<String, Object>) userInfo.get("kakao_account")
+                : null;
+
+        Map<String, Object> profile = (kakaoAccount != null && kakaoAccount.get("profile") != null)
+                ? (Map<String, Object>) kakaoAccount.get("profile")
+                : null;
+
+        String nickname = (profile != null && profile.get("nickname") != null)
+                ? (String) profile.get("nickname")
+                : "카카오유저";  // 기본값
+
+        String email = (kakaoAccount != null && kakaoAccount.get("email") != null)
+                ? (String) kakaoAccount.get("email")
+                : "kakao_" + kakaoId + "@nubee.com";  // 기본값
 
         // 4. DB 작업은 별도 트랜잭션 메서드로 분리
         return processKakaoLogin(kakaoId, nickname, email);
