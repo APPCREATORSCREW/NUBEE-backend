@@ -52,7 +52,7 @@ public class KakaoAuthService {
                 + "?client_id=" + clientId
                 + "&redirect_uri=" + redirectUri
                 + "&response_type=code"
-                + "&state=" + state;;
+                + "&state=" + state;
     }
 
     // 카카오 로그인 처리
@@ -79,19 +79,29 @@ public class KakaoAuthService {
         String nickname = (String) profile.get("nickname");
         String email = (String) kakaoAccount.get("email");
 
-        // 4. 기존 유저 조회 또는 신규 유저 생성
-        boolean isNew = !userRepository.existsByKakaoId(kakaoId); // 유저를 생성하기 전에 존재 여부를 확인
-        User user = userRepository.findByKakaoId(kakaoId)
-                .orElseGet(() -> createKakaoUser(kakaoId, nickname, email));  // email 추가
+        // 4. DB 작업은 별도 트랜잭션 메서드로 분리
+        return processKakaoLogin(kakaoId, nickname, email);
+    }
 
-        // 5. 기존 RefreshToken 삭제
+    // DB 작업만 트랜잭션으로 처리
+    @Transactional
+    public KakaoLoginResDTO processKakaoLogin(String kakaoId, String nickname, String email) {
+
+        // 신규 유저 여부 확인
+        boolean isNew = !userRepository.existsByKakaoId(kakaoId);
+
+        // 기존 유저 조회 또는 신규 유저 생성
+        User user = userRepository.findByKakaoId(kakaoId)
+                .orElseGet(() -> createKakaoUser(kakaoId, nickname, email));
+
+        // 기존 RefreshToken 삭제
         refreshTokenRepository.deleteByUser(user);
 
-        // 6. JWT 토큰 발급
+        // JWT 토큰 발급
         String accessToken = jwtUtil.generateAccessToken(user.getEmail());
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
 
-        // 7. RefreshToken 저장
+        // RefreshToken 저장
         saveRefreshToken(user, refreshToken);
 
         return new KakaoLoginResDTO(accessToken, refreshToken, isNew);
