@@ -29,6 +29,7 @@ public class KakaoAuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
     private final AuthService authService;
+    private final KakaoUserService kakaoUserService;
 
     @Value("${kakao.client-id}")
     private String clientId;
@@ -59,7 +60,6 @@ public class KakaoAuthService {
 
     // 카카오 로그인 처리
     @SuppressWarnings("unchecked")
-    @Transactional
     public KakaoLoginResDTO kakaoLogin(String code, String state, HttpSession session) {
         // state 검증
         String savedState = (String) session.getAttribute("kakao_state");
@@ -93,40 +93,7 @@ public class KakaoAuthService {
                 : "kakao_" + kakaoId + "@nubee.com";  // 기본값
 
         // 4. DB 작업은 별도 트랜잭션 메서드로 분리
-        return processKakaoLogin(kakaoId, nickname, email);
-    }
-
-    // DB 작업만 트랜잭션으로 처리
-    @Transactional
-    public KakaoLoginResDTO processKakaoLogin(String kakaoId, String nickname, String email) {
-
-        // 신규 유저 여부 확인
-        boolean isNew = !userRepository.existsByKakaoId(kakaoId);
-
-        // 기존 유저 조회 또는 신규 유저 생성
-        User user = userRepository.findByKakaoId(kakaoId)
-                .orElseGet(() -> {
-                    // 같은 이메일로 가입된 계정이 있으면 kakaoId 연결
-                    return userRepository.findByEmail(email)
-                            .map(existingUser -> {
-                                existingUser.updateKakaoId(kakaoId);
-                                return existingUser;
-                            })
-                            // 없으면 신규 생성
-                            .orElseGet(() -> createKakaoUser(kakaoId, nickname, email));
-                });
-
-        // 기존 RefreshToken 삭제
-        refreshTokenRepository.deleteByUser(user);
-
-        // JWT 토큰 발급
-        String accessToken = jwtUtil.generateAccessToken(user.getEmail());
-        String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
-
-        // RefreshToken 저장
-        saveRefreshToken(user, refreshToken);
-
-        return new KakaoLoginResDTO(accessToken, refreshToken, isNew);
+        return kakaoUserService.processKakaoLogin(kakaoId, nickname, email);
     }
 
     // 카카오 액세스 토큰 발급
@@ -171,28 +138,4 @@ public class KakaoAuthService {
                 .block();
     }
 
-    // 신규 카카오 유저 생성
-    private User createKakaoUser(String kakaoId, String nickname, String email) {
-        User user = User.builder()
-                .kakaoId(kakaoId)
-                .username(nickname)
-                .email(email != null ? email : "kakao_" + kakaoId + "@nubee.com")
-                .preferredKeywordCount(3)
-                .currentSkin("DEFAULT")
-                .status(UserStatus.ACTIVE)
-                .isParentVerified(false)
-                .build();
-        return userRepository.save(user);
-    }
-
-    // RefreshToken 저장
-    private void saveRefreshToken(User user, String refreshToken) {
-        String hashedToken = authService.hashToken(refreshToken);
-        RefreshToken token = RefreshToken.builder()
-                .user(user)
-                .tokenHash(hashedToken)
-                .expiresAt(LocalDateTime.now().plusDays(7))
-                .build();
-        refreshTokenRepository.save(token);
-    }
 }
