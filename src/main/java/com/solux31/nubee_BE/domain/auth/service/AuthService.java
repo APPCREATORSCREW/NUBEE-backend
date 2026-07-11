@@ -162,7 +162,7 @@ public class AuthService {
     }
 
     // SHA-256 해싱 메서드
-    private String hashToken(String token) {
+    public String hashToken(String token) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
