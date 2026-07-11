@@ -13,12 +13,15 @@ import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.SignupResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.TokenRefreshResDTO;
 import com.solux31.nubee_BE.domain.auth.service.AuthService;
+import com.solux31.nubee_BE.domain.auth.service.KakaoAuthService;
 import com.solux31.nubee_BE.global.apiPayload.ApiResponse;
 import com.solux31.nubee_BE.global.apiPayload.code.GeneralSuccessCode;
 import com.solux31.nubee_BE.global.security.entity.AuthUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.io.IOException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final KakaoAuthService kakaoAuthService;
 
     // 회원가입
     @PostMapping("/signup")
@@ -108,5 +112,20 @@ public class AuthController {
     public ApiResponse<String> verifyParentEmail(@RequestBody @Valid ParentEmailVerifyReqDTO request) {
         authService.verifyParentEmail(request);
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, "인증이 완료되었습니다.");
+    }
+
+    // 카카오 로그인 시작
+    @GetMapping("/kakao")
+    @Operation(summary = "카카오 로그인 시작", description = "카카오 인증 페이지로 리다이렉트합니다.")
+    public void kakaoLogin(HttpServletResponse response) throws IOException {
+        String kakaoLoginUrl = kakaoAuthService.getKakaoLoginUrl();
+        response.sendRedirect(kakaoLoginUrl);
+    }
+
+    // 카카오 로그인 콜백
+    @GetMapping("/kakao/callback")
+    @Operation(summary = "카카오 로그인 콜백", description = "카카오 OAuth 인증 후 콜백을 처리합니다.")
+    public ApiResponse<LoginResDTO> kakaoCallback(@RequestParam String code) {
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK, kakaoAuthService.kakaoLogin(code));
     }
 }
