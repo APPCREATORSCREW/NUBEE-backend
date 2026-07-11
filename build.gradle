@@ -50,6 +50,9 @@ dependencies {
 
 	// Email verification
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
+
+	// HTTP 클라이언트 (카카오 API 호출용)
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 }
 
 tasks.named('test') {
