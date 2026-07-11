@@ -9,6 +9,7 @@ import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.global.security.util.JwtUtil;
 import jakarta.servlet.http.HttpSession;
+import java.time.Duration;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +19,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -140,7 +142,12 @@ public class KakaoAuthService {
                         + "&redirect_uri=" + redirectUri
                         + "&code=" + code)
                 .retrieve()
+                .onStatus(status -> status.is4xxClientError(),
+                        res -> Mono.error(new IllegalArgumentException("카카오 인증 코드가 유효하지 않습니다.")))
+                .onStatus(status -> status.is5xxServerError(),
+                        res -> Mono.error(new RuntimeException("카카오 서버 오류가 발생했습니다.")))
                 .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(5))  // 5초 타임아웃
                 .block();
 
         return (String) response.get("access_token");
@@ -155,7 +162,12 @@ public class KakaoAuthService {
                 .uri("/v2/user/me")
                 .header("Authorization", "Bearer " + kakaoAccessToken)
                 .retrieve()
+                .onStatus(status -> status.is4xxClientError(),
+                        res -> Mono.error(new IllegalArgumentException("카카오 액세스 토큰이 유효하지 않습니다.")))
+                .onStatus(status -> status.is5xxServerError(),
+                        res -> Mono.error(new RuntimeException("카카오 서버 오류가 발생했습니다.")))
                 .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(5))  // 5초 타임아웃
                 .block();
     }
 
