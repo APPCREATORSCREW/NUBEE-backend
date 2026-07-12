@@ -26,7 +26,7 @@ public class NewsApiService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     //특정 카테고리 키워드로 최신 뉴스 2개를 긁어오는 메서드
-    public List<NaverNewsResponse.NaverNewsItem> fetchTwoNewsByCategory(String categoryKeyword) {
+    public List<NaverNewsResponse.NaverNewsItem> fetchNewsByCategory(String categoryCode, int displayCount) {
         // 1. 네이버 API는 헤더에 ID와 Secret을 요구
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Naver-Client-Id", clientId);
@@ -35,15 +35,18 @@ public class NewsApiService {
 
         HttpEntity<String> entity = new HttpEntity<>(headers);
 
-        // 2. URL 조립 (카테고리 키워드로 검색, 정확도순 정렬, 2개씩 가져오기)
+        // 2. 카테고리 코드를 네이버 API 검색어 키워드로 변환 ("101" -> "경제")
+        String queryKeyword = convertCodeToKeyword(categoryCode);
+
+        // 3. URL 조립 (정확도순 정렬, 지정된 개수만큼 가져오기)
         URI targetUri = UriComponentsBuilder.fromUriString(apiUrl)
-                .build() // 먼저 URI 틀 마련
-                .expand() // 혹시 모를 템플릿 확장을 방지
+                .build()
+                .expand()
                 .toUri();
 
         targetUri = UriComponentsBuilder.fromUri(targetUri)
-                .queryParam("query", categoryKeyword)
-                .queryParam("display", 2)
+                .queryParam("query", queryKeyword)
+                .queryParam("display", displayCount)
                 .queryParam("sort", "sim")
                 .build()
                 .encode()
@@ -54,31 +57,25 @@ public class NewsApiService {
                     targetUri, HttpMethod.GET, entity, NaverNewsResponse.class);
 
             if (response.getBody() != null) {
-                return response.getBody().getItems(); // 네이버가 준 2개짜리 리스트 리턴
+                return response.getBody().getItems();
             }
         } catch (Exception e) {
-            System.out.println(categoryKeyword + " 뉴스 조회 중 에러 발생: " + e.getMessage());
+            System.out.println(queryKeyword + " 뉴스 조회 중 에러 발생: " + e.getMessage());
         }
-        return new ArrayList<>(); // 에러 나면 빈 바구니 리턴해서 튕김 방지
+        return new ArrayList<>();
     }
 
-    // 새벽 배치가 호출할 마스터 메서드, 설정된 4개 카테고리에서 각각 2개씩 총 8개의 뉴스를 수집
-    public List<NaverNewsResponse.NaverNewsItem> fetchDailyEightNews() {
-        // 4가지 카테고리 키워드를 리스트로 정의
-        String[] categories = {"경제", "사회", "과학", "세계"};
-        List<NaverNewsResponse.NaverNewsItem> totalEightNews = new ArrayList<>();
-
-        for (String category : categories) {
-            List<NaverNewsResponse.NaverNewsItem> newsList = fetchTwoNewsByCategory(category);
-            if (newsList != null) {
-                for (NaverNewsResponse.NaverNewsItem item : newsList) {
-                    // 네이버에서 긁어온 직후, 카테고리 달아주기.
-                    item.setCategory(category);
-                    totalEightNews.add(item);
-                }
-            }
-        }
-
-        return totalEightNews; // 8개의 뉴스 리턴
+    /**
+     * 내부 헬퍼 메서드: NewsService에서 넘겨준 카테고리 코드를
+     * 네이버 뉴스 검색어 API에 던질 알맞은 키워드로 치환
+     */
+    private String convertCodeToKeyword(String categoryCode) {
+        return switch (categoryCode) {
+            case "100" -> "경제";
+            case "101" -> "사회";
+            case "102" -> "과학";
+            case "105" -> "세계";
+            default -> "일반상식";
+        };
     }
 }

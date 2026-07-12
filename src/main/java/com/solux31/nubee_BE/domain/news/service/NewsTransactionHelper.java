@@ -29,7 +29,7 @@ public class NewsTransactionHelper {
      * 새 독립 트랜잭션 주머니에서 실행됨. 실패 시 이 안의 내용만 롤백
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public String processSingleNews(NaverNewsResponse.NaverNewsItem naverNews) throws Exception {
+    public String processSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String categoryName) throws Exception {
         String articleBody = "";
 
         // 1. 크롤링 및 Fallback 처리
@@ -60,7 +60,7 @@ public class NewsTransactionHelper {
                 .originalUrl(naverNews.getLink())
                 .summary(result.getSummary())
                 .mainKeyword(result.getMainKeyword())
-                .category(naverNews.getCategory())
+                .category(categoryName)
                 .build();
         DailyNews savedNews = dailyNewsRepository.save(news);
         System.out.println("[DB 저장 완료] DailyNews ID: " + savedNews.getNewsId());
