@@ -1,6 +1,8 @@
 package com.solux31.nubee_BE.domain.news.controller;
 
 import com.solux31.nubee_BE.domain.news.dto.KeywordQuizResponse;
+import com.solux31.nubee_BE.domain.news.dto.QuizSubmitRequest;
+import com.solux31.nubee_BE.domain.news.dto.QuizSubmitResponse;
 import com.solux31.nubee_BE.domain.news.dto.TodayNewsResponse;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
@@ -156,7 +158,7 @@ public class NewsController {
             @RequestBody QuizSubmitRequest request // 👈 JSON 바디 접수!
     ) {
         // 400 에러 방어: 필수 입력값 누락 검증
-        if (keywordId == null || request.getQuizid() == null || request.getSelected_answer() <= 0) {
+        if (keywordId == null || request.getQuiz_id() == null || request.getSelected_answer() <= 0) {
             return ResponseEntity.badRequest().body("필수 입력값 누락 (quiz_id, selected_answer)");
         }
 
