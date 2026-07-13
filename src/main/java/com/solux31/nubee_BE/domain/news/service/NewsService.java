@@ -7,8 +7,10 @@ import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.news.dto.*;
 import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import com.solux31.nubee_BE.domain.news.entity.Quiz;
+import com.solux31.nubee_BE.domain.news.entity.UserQuizLog;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
+import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
 import com.solux31.nubee_BE.domain.words.service.WordService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,7 @@ public class NewsService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final NewsTransactionHelper newsTransactionHelper;
     private final UserRepository userRepository;
+    private final UserQuizLogRepository userQuizLogRepository;
 
     /**
      * [전체 데일리 뉴스 생성 파이프라인]
@@ -199,7 +202,7 @@ public class NewsService {
         // 4. 지그재그 배치 알고리즘 실행
         List<DailyNews> balancedList = rearrangeByCategorySequence(allTodayNews);
 
-        // 5. ✨ 유저가 설정한 preferred_keyword_count 만큼 정확하게 리스트 슬라이싱!
+        // 5. 유저가 설정한 preferred_keyword_count 만큼 정확하게 리스트 슬라이싱
         int targetSize = Math.min(userPreferredCount, balancedList.size());
         List<DailyNews> selectedNews = balancedList.subList(0, targetSize);
 
@@ -228,7 +231,6 @@ public class NewsService {
     @Transactional(readOnly = true)
     public KeywordQuizResponse getKeywordQuizByKeywordId(Long keywordId) {
         // 1. Quiz 레포지토리에서 keywordId와 타입이 "KEYWORD"인 데이터 1건 찾기
-        // (💡 QuizRepository에 findByKeywordIdAndQuizType 메서드가 정의되어 있어야 합니다!)
         Quiz quiz = quizRepository.findByKeywordIdAndQuizType(keywordId, "KEYWORD")
                 .orElseThrow(() -> new IllegalArgumentException("해당 키워드에 연결된 퀴즈 존재하지 않음"));
 
@@ -255,6 +257,58 @@ public class NewsService {
                 quiz.getQuizType(),
                 quiz.getQuestion(),
                 parsedOptions
+        );
+    }
+
+    /**
+     * [명세서 반영] 퀴즈 채점, 중복 검사, 로그 기록, 유저 포인트 정산 통합 로직
+     */
+    @Transactional
+    public QuizSubmitResponse submitAndGradeQuiz(Long userId, Long keywordId, QuizSubmitRequest request) {
+
+        // 1. 404 방어: 해당 퀴즈가 진짜 존재하는지 조회
+        Quiz quiz = quizRepository.findById(request.getQuiz_id())
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
+
+        // 2. 400 방어: 로그 테이블에서 keywordId를 뺐으므로, 이제는 quizId 기반으로 중복 풀이 검사!
+        boolean alreadySolved = userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id());
+        if (alreadySolved) {
+            throw new IllegalArgumentException("이미 완료된 키워드 퀴즈에 대한 제출 요청");
+        }
+
+        // 3. 채점 진행 (유저가 고른 답과 실제 정답 번호 비교)
+        boolean isCorrect = (quiz.getAnswer() == request.getSelected_answer());
+        int earnedPoint = isCorrect ? 1 : 0; // 맞추면 1점, 틀리면 0점
+
+        // 4. 유저 포인트 정산 및 업데이트
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+        user.updatePoint(earnedPoint);
+
+        // 5. 나연님의 UserQuizLog 엔티티 스펙에 맞춰 누락 없이 꼼꼼하게 빌드!
+        UserQuizLog quizLog = UserQuizLog.builder()
+                .userId(userId)
+                .quizId(quiz.getQuizId())
+                .category(quiz.getCategory()) // 엔티티 제약조건(nullable=false) 충족을 위해 필수 주입
+                .selectedAnswer(request.getSelected_answer()) // 엔티티 제약조건 충족
+                .isCorrect(isCorrect)
+                .isCompleted(true) // 학습을 완료했으므로 true 주입
+                .build();
+        userQuizLogRepository.save(quizLog);
+
+        // 6. 명세서 피드백 양식 DTO 조립해서 리턴
+        QuizSubmitResponse.PointResultDto pointResult = new QuizSubmitResponse.PointResultDto(
+                earnedPoint,
+                user.getPoint()
+        );
+
+        return new QuizSubmitResponse(
+                quiz.getQuizId(),
+                request.getSelected_answer(),
+                isCorrect,
+                quiz.getAnswer(),
+                quiz.getExplanation(),
+                pointResult
         );
     }
 

@@ -87,7 +87,7 @@ public class NewsTransactionHelper {
         return result.getMainKeyword();
     }
 
-    // 기존 NewsService에 있던 analyzeSingleNews 로직을 이쪽으로 옮겨옵니다.
+    // 기존 NewsService에 있던 analyzeSingleNews 로직을 이쪽으로 옮겨오기
     private NewsAnalysisResult analyzeSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String articleBody) {
         String prompt = String.format(
                 "너는 초등학생을 위한 뉴스 교육 서비스의 AI 콘텐츠 생성기이자, 친절한 선생님이야.\n" +

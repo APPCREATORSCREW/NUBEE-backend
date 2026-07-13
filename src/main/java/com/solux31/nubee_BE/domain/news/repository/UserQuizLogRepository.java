@@ -8,10 +8,13 @@ import java.util.Optional;
 
 @Repository
 public interface UserQuizLogRepository extends JpaRepository<UserQuizLog, Long> {
-    // 이 유저가 이 퀴즈를 이미 풀었는지 확인하기 위한 메서드
+
+    // 메서드 1: 유저가 특정 퀴즈 ID를 풀었는지 검사 (유지)
     boolean existsByUserIdAndQuizId(Long userId, Long quizId);
 
-    // 특정 유저가 같은 카테고리 내에서 '현재 내 퀴즈 ID가 아닌 다른 퀴즈'를 푼 적이 있는지 체크
-    // 오늘의 퀴즈가 카테고리당 뉴스1 + 단어1 한 세트로 깔끔하게 매칭되어 나오기 때문에 이 쿼리로 검증 가능
+    // 메서드 2: 카테고리 내 중복 검증용 (유지)
     boolean existsByUserIdAndCategoryAndQuizIdNot(Long userId, String category, Long quizId);
+
+    // [추가] 유저가 특정 키워드(단어)에 매칭된 퀴즈를 이미 풀었는지 검사
+    boolean existsByUserIdAndKeywordId(Long userId, Long keywordId);
 }

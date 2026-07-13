@@ -143,6 +143,50 @@ public class NewsController {
         }
     }
 
+    /**
+     * [명세서 반영] 4번 키워드 퀴즈 채점 및 포인트 지급
+     * POST /api/v1/keywords/{keyword_id}/quiz/submit
+     */
+    @Operation(summary = "키워드 퀴즈 채점 및 포인트 지급",
+            description = "유저가 제출한 답안을 채점하여 정답 여부와 해설을 반환하고, 맞춘 경우 1포인트를 지급합니다.")
+    @PostMapping("/api/v1/keywords/{keyword_id}/quiz/submit")
+    public ResponseEntity<?> submitKeywordQuiz(
+            @RequestHeader("Authorization") String token,
+            @PathVariable("keyword_id") Long keywordId,
+            @RequestBody QuizSubmitRequest request // 👈 JSON 바디 접수!
+    ) {
+        // 400 에러 방어: 필수 입력값 누락 검증
+        if (keywordId == null || request.getQuizid() == null || request.getSelected_answer() <= 0) {
+            return ResponseEntity.badRequest().body("필수 입력값 누락 (quiz_id, selected_answer)");
+        }
+
+        try {
+            // [테스트용 임시 조치] 이전과 동일하게 1번 유저로 가짜 유저 고정
+            Long temporaryUserId = 1L;
+
+            // 서비스 레이어 호출하여 채점 및 포인트 합산 진행
+            QuizSubmitResponse responseData = newsService.submitAndGradeQuiz(temporaryUserId, keywordId, request);
+
+            // 명세서 양식 규격 포장
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", "SUCCESS");
+            result.put("message", "퀴즈 채점이 완료되었습니다.");
+            result.put("data", responseData);
+
+            return ResponseEntity.ok(result);
+
+        } catch (IllegalArgumentException e) {
+            // 404: 존재하지 않는 퀴즈 ID / 400: 이미 완료된 키워드 퀴즈에 대한 제출 요청
+            if (e.getMessage().contains("존재하지 않는")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+            }
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     // Swagger 출력용 내부 DTO
     @Getter
     @AllArgsConstructor
