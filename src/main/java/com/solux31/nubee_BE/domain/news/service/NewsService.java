@@ -15,9 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -37,7 +35,11 @@ public class NewsService {
      */
     @Transactional
     public void executeDailyNewsWorkflow() {
-        Set<String> uniqueKeywords = new HashSet<>(); // 추출된 메인 키워드 중복 제거 보관함
+        System.out.println("[배치 시작] 오늘의 뉴스를 위해 기존 뉴스 및 퀴즈 데이터를 정리합니다.");
+
+        // 연관관계 자식 테이블부터 순서대로 비워주기 (외래키 에러 방지)
+        quizRepository.deleteAllInBatch();      // 퀴즈 삭제
+        dailyNewsRepository.deleteAllInBatch(); // 뉴스 삭제
 
         // 1. 수집할 네이버 뉴스 카테고리 ID 배열 (정치/국제, 경제, 사회, IT/과학)
         String[] categories = {"100", "101", "102", "105"};
@@ -56,53 +58,46 @@ public class NewsService {
                 continue;
             }
 
-            // 테스트 기간 크레딧 세이브를 위한 subList 장치 (원하면 주석 해제하여 사용)
-            // if (naverNewsList.size() > 1) { naverNewsList = naverNewsList.subList(0, 1); }
+            // 테스트 기간 크레딧 세이브를 위한 subList 장치
+            if (naverNewsList.size() > 1) { naverNewsList = naverNewsList.subList(0, 1); }
 
             // 3단계: 해당 카테고리의 뉴스별 본문 확보 및 1단계 연성
             for (NaverNewsResponse.NaverNewsItem naverNews : naverNewsList) {
                 try {
                     String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName);
+
+                    // 💡 [수정] 기사 하나당 메인 키워드가 정상적으로 추출되었다면, 바로 그 자리에서 퀴즈를 생성하고 저장합니다!
                     if (mainKeyword != null) {
-                        uniqueKeywords.add(mainKeyword);
+
+                        // 단일 키워드를 리스트에 담아 Gemini 메서드에 전달 (기존 메서드 스펙 유지용)
+                        List<String> singleKeywordList = List.of(mainKeyword);
+                        List<MainKeywordResult> masterResults = generateMasterKeywordsAndQuizzes(singleKeywordList);
+
+                        for (MainKeywordResult master : masterResults) {
+                            Long savedKeywordId = wordService.updateKeywordExplanations(master.getKeyword(), master.getExplanation());
+
+                            try {
+                                String optionsJson = objectMapper.writeValueAsString(master.getKeywordQuiz().getOptions());
+                                Quiz keywordQuiz = Quiz.builder()
+                                        .quizType("KEYWORD")
+                                        .question(master.getKeywordQuiz().getQuestion())
+                                        .optionsJson(optionsJson)
+                                        .answer(master.getKeywordQuiz().getAnswer())
+                                        .explanation(master.getKeywordQuiz().getExplanation())
+                                        .keywordId(savedKeywordId)
+                                        .category(categoryName) // ➔ 💡 이제 루프 안쪽이므로 현재 기사의 categoryName("경제" 등)이 정확하게 들어갑니다!
+                                        .build();
+                                quizRepository.save(keywordQuiz);
+                            } catch (Exception e) {
+                                System.err.println("키워드 마스터 퀴즈 DB 저장 중 오류 발생");
+                                e.printStackTrace();
+                            }
+                        }
                     }
                 } catch (Exception e) {
                     System.err.println("❌ [" + categoryName + "] 특정 뉴스 파이프라인 실패로 패스합니다: " + naverNews.getLink());
                     e.printStackTrace();
                 }
-            }
-        }
-
-        // Set을 다시 원래 메서드가 요구하는 List 형태로 변환
-        List<String> mainKeywords = new ArrayList<>(uniqueKeywords);
-
-        // -------------------------------------------------------------------------
-        // 4단계: 마스터 퀴즈 & 설명 생성 (추출된 모든 Main 키워드 통합 연성)
-        // -------------------------------------------------------------------------
-        if (mainKeywords.isEmpty()) {
-            System.out.println("성공한 메인 키워드가 없어 마스터 퀴즈 생성을 건너뜁니다.");
-            return;
-        }
-
-        List<MainKeywordResult> masterResults = generateMasterKeywordsAndQuizzes(mainKeywords);
-
-        for (MainKeywordResult master : masterResults) {
-            Long savedKeywordId = wordService.updateKeywordExplanations(master.getKeyword(), master.getExplanation());
-
-            try {
-                String optionsJson = objectMapper.writeValueAsString(master.getKeywordQuiz().getOptions());
-                Quiz keywordQuiz = Quiz.builder()
-                        .quizType("KEYWORD")
-                        .question(master.getKeywordQuiz().getQuestion())
-                        .optionsJson(optionsJson)
-                        .answer(master.getKeywordQuiz().getAnswer())
-                        .explanation(master.getKeywordQuiz().getExplanation())
-                        .keywordId(savedKeywordId)
-                        .build();
-                quizRepository.save(keywordQuiz);
-            } catch (Exception e) {
-                System.err.println("키워드 마스터 퀴즈 DB 저장 중 오류 발생");
-                e.printStackTrace();
             }
         }
     }
@@ -129,24 +124,37 @@ public class NewsService {
         }
 
         String promptTemplate =
-                "너는 초등학생을 위한 어휘 교육 전문가야.\n" +
-                        "제공된 [키워드 리스트]에 속한 각 단어들에 대해, 초등학교 3~4학년이 이해하기 쉬운 친절한 설명과 4지선다 객관식 퀴즈를 각각 1개씩 생성해줘.\n\n" +
-                        "요구사항:\n" +
+                "너는 초등학생을 위한 어휘 교육 전문가이자, 친절한 캐릭터 '누비(꿀벌)'야.\n" +
+                        "제공된 [키워드 리스트]에 속한 각 단어들에 대해, 초등학교 3~4학년이 완벽히 이해할 수 있도록 **설명 구조와 말투를 규격화하여** 생성해줘.\n\n" +
+
+                        "요구사항 및 텍스트 구조 제약 (매우 중요):\n" +
                         "1. keyword: 제공된 리스트에 있는 단어 이름 그대로 출력\n" +
-                        "2. explanation: 초등학생 맞춤형 단어 뜻 설명 (예: '금리'라면 '돈을 빌릴 때 내는 이자의 비율이에요' 처럼 쉽고 친절하게)\n" +
-                        "3. keywordQuiz: 단어의 정확한 의미나 쓰임을 잘 이해했는지 확인할 수 있는 4지선다 객관식 퀴즈\n\n" +
+                        "2. explanation: **[반드시 아래의 5단계 구조와 줄바꿈(\\n), 말투를 유사하게 지켜서 작성해줘]**\n" +
+                        "   - [1단계: 한 줄 정의]: '[단어명]는/은 ~예요/이에요!' 형태로 단어의 핵심을 쉽고 명확하게 한 줄로 정의.\n" +
+                        "   - [2단계: 일상 예시]: '예를 들어볼게요.'로 시작하여, 아이들이 친구나 가족 사이, 혹은 일상생활에서 쉽게 겪을 수 있는 구체적인 예시나 상황(숫자나 비유 활용)을 넣어 친절하게 설명.\n" +
+                        "   - [3단계: 인과 현상 1]: 이 단어가 가진 개념이나 속성이 '높아지거나/강해지거나/많아지면' 일상이나 경제/사회/과학 분야에 어떤 변화나 현상이 생기는지 초등 눈높이로 설명.\n" +
+                        "   - [4단계: 인과 현상 2]: 이 단어가 가진 개념이나 속성이 '낮아지거나/약해지거나/적어지면' 어떻게 되는지 반대 상황을 설명하거나, 아이들이 추가로 알아야 할 핵심 연관 현상을 설명.\n" +
+                        "   - [5단계: 요약 마감]: '이것만 기억해요!' 문구를 넣은 뒤, 핵심 규칙 3가지를 글머리 기호(•), 화살표(➔), 상태 기호(↑, ↓)를 조합하여 깔끔하게 요약 마무리.\n\n" +
+
+                        "3. keywordQuiz: 단어의 쓰임새와 현상을 묻는 4지선다 객관식 퀴즈\n" +
+                        "   - 🚨 [단순 뜻 풀이 절대 금지]: '이 단어의 뜻은 무엇일까요?' 같은 단순 정의 찾기 문제는 절대 출제하지 마.\n" +
+                        "   - 반드시 위 [explanation]의 3, 4단계에서 다룬 현상이나 인과관계(예: ~가 어떻게 되면 어떤 일이 일어날까요?)를 질문으로 던져줘.\n" +
+                        "   - keywordQuiz.explanation(퀴즈 해설): 최소 2문장 이상으로 왜 그 보기들이 오답이고 정답인지 아이 눈높이에서 원리를 조곤조곤 설명해줘.\n\n" +
+
                         "[⚠️ 엄격한 예외 처리 및 탈선 방지 규칙]\n" +
+                        "- 특정 단어(예: 금리)의 예시 문장이나 숫자를 다른 단어에 그대로 베껴 쓰지 마. 입력된 단어의 본질에 맞는 완전히 새로운 독창적인 일상 예시를 창작해내야 해.\n" +
                         "- 답할 때 앞뒤로 수식어나 인사말, 또는 마크다운 주석(```json ... ```)을 절대 붙이지 말고, 오직 [로 시작해서 ]로 끝나는 순수한 JSON 배열(Array) 데이터만 반환해.\n\n" +
-                        "[출력 포맷 (JSON 배열 구조)]\n" +
+
+                        "[출력 포맷 (JSON 배열 구조 가이드)]\n" +
                         "[\n" +
                         "  {\n" +
-                        "    \"keyword\": \"단어명1\",\n" +
-                        "    \"explanation\": \"초등학생 맞춤형 단어 뜻 설명1\",\n" +
+                        "    \"keyword\": \"입력된 단어 이름\",\n" +
+                        "    \"explanation\": \"[1단계 한 줄 정의]\\n\\n[2단계 예를 들어볼게요. 로 시작하는 일상 예시 바디]\\n\\n[3단계 개념이 높아지거나 강해질 때의 현상]\\n\\n[4단계 개념이 낮아지거나 약해질 때의 현상]\\n\\n이것만 기억해요!\\n• [핵심요약 1] ➔ [현상 1] ↑\\n• [핵심요약 2] ➔ [현상 2] 쉬워짐\\n• [핵심요약 3]\",\n" +
                         "    \"keywordQuiz\": {\n" +
-                        "      \"question\": \"이 단어의 알맞은 뜻은 무엇일까요?\",\n" +
-                        "      \"options\": [\"보기1\", \"보기2\", \"보기3\", \"보기4\"],\n" +
+                        "      \"question\": \"단어의 인과관계를 묻는 맥락 질문\",\n" +
+                        "      \"options\": [\"선지1\", \"선지2\", \"선지3\", \"선지4\"],\n" +
                         "      \"answer\": 0,\n" +
-                        "      \"explanation\": \"초등학생 눈높이에 맞춘 쉽고 명쾌한 정답 해설\"\n" +
+                        "      \"explanation\": \"정답과 오답의 원리를 친절하게 설명하는 2문장 이상의 해설\"\n" +
                         "    }\n" +
                         "  }\n" +
                         "]\n\n" +
