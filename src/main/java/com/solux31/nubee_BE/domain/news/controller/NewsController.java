@@ -1,6 +1,7 @@
 package com.solux31.nubee_BE.domain.news.controller;
 
-//swagger 테스트용 - gemini 테스트
+import com.solux31.nubee_BE.domain.news.dto.KeywordQuizResponse;
+import com.solux31.nubee_BE.domain.news.dto.TodayNewsResponse;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.service.NewsService;
@@ -13,13 +14,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-@Tag(name = "Premium News Test API", description = "데일리 뉴스 생성 파이프라인 테스트용 API")
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+@Tag(name = "News API", description = "데일리 뉴스 조회 및 생성 파이프라인 관련 API")
 @RestController
-@RequestMapping("/api/test/news")
+@RequestMapping("/api/v1/news") // 정식 서비스 API 주소 규격으로 통일
 @RequiredArgsConstructor
 public class NewsController {
 
@@ -28,26 +30,68 @@ public class NewsController {
     private final QuizRepository quizRepository;
     private final KeywordRepository keywordRepository;
 
-    @Operation(summary = "데일리 뉴스 파이프라인 강제 실행 & 결과 확인",
-            description = "전체 로직을 즉시 실행한 후, 방금 DB에 적재된 최신 뉴스 리스트와 퀴즈 목록을 Swagger 화면에 한눈에 뿌려줍니다.")
-    @GetMapping("/daily-workflow")
+    /**
+     * [1번 기능: 정식 서비스용] 오늘의 맞춤 키워드 및 뉴스 리스트 조회
+     * GET /api/v1/news?count=6
+     */
+    @Operation(summary = "오늘의 맞춤 키워드 및 뉴스 리스트 조회",
+            description = "회원 정보(preferred_keyword_count)에 설정된 개수에 맞춰 카테고리 균형을 잡은 뉴스 리스트를 반환합니다.")
+    @GetMapping
+    public ResponseEntity<?> getTodayKeywordsAndNews(
+            @RequestHeader("Authorization") String token
+    ) {
+        try {
+            // 1. JWT 토큰에서 유저 ID 혹은 이메일을 추출하는 로직 (기존 프로젝트 보안 헬퍼 활용)
+            // Long userId = jwtTokenProvider.getUserId(token);
+
+            Long temporaryUserId = 1L; // 💡 테스트용 임시 유저 ID (실제 유저 식별 코드로 교체 필요)
+
+            // 2. 서비스 단에 유저 ID를 넘겨주어, 그 유저가 설정한 개수만큼 알아서 꺼내오도록 요청!
+            TodayNewsResponse responseData = newsService.getBalancedTodayNewsForUser(temporaryUserId);
+
+            if (responseData.getNews_list().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("오늘 제공된 뉴스 학습 데이터가 존재하지 않습니다.");
+            }
+
+            // 명세서 규격 포장
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", "SUCCESS");
+            result.put("message", "오늘의 맞춤 키워드 및 뉴스 리스트 조회가 완료되었습니다.");
+            result.put("data", responseData);
+
+            return ResponseEntity.ok(result);
+
+        } catch (IllegalArgumentException e) {
+            // 유저의 설정 개수가 3~6 범위를 벗어나는 등 잘못된 데이터 예외 처리
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * [2번 기능: 개발자 테스트용] 데일리 뉴스 파이프라인 강제 실행 & 결과 확인
+     * GET /api/v1/news/daily-workflow
+     */
+    @Operation(summary = "[테스트용] 데일리 뉴스 파이프라인 강제 실행",
+            description = "네이버 API 수집 및 Gemini 연성 로직을 즉시 실행하여 DB에 새 데이터를 채워 넣습니다.")
+    @GetMapping("/daily-workflow") // 주소가 /api/v1/news/daily-workflow 가 됩니다.
     public ResponseEntity<?> triggerDailyWorkflow() {
         try {
             System.out.println("[Swagger Test] 데일리 뉴스 파이프라인 가동 시작...");
 
-            // 1. 파이프라인 가동! (기존 로직 수행)
+            // 파이프라인 가동! (DB 싹 비우고 네이버 긁어와서 Gemini 연성하기)
             newsService.executeDailyNewsWorkflow();
 
             System.out.println("[Swagger Test] 파이프라인 정상 종료 ➡ DB 데이터 추출 시작");
 
-            // 2. 레포지토리에서 방금 들어간 데이터들 긁어오기
             var latestNews = dailyNewsRepository.findAll();
             var latestQuizzes = quizRepository.findAll();
             var latestKeywords = keywordRepository.findAll(Sort.by(Sort.Direction.DESC, "keywordId"));
 
-            // 3. 묶어서 Swagger 화면에 리턴해주기
             WorkflowResult result = new WorkflowResult(
-                    "🎉 데일리 뉴스 및 퀴즈 생성을 성공했습니다!",
+                    "데일리 뉴스 및 퀴즈 생성을 성공했습니다!",
                     latestNews,
                     latestQuizzes,
                     latestKeywords
@@ -58,11 +102,48 @@ public class NewsController {
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("❌ 파이프라인 실행 중 에러 발생: " + e.getMessage() + " (상세 로그는 인텔리제이 콘솔을 확인하세요.)");
+                    .body("파이프라인 실행 중 에러 발생: " + e.getMessage());
         }
     }
 
-    // 💡 Swagger 출력용 예쁜 바구니 객체 (DTO)
+    /**
+     * [명세서 반영] 3번 특정 키워드 퀴즈 조회
+     * GET /api/v1/keywords/{keyword_id}/quiz
+     */
+    @Operation(summary = "특정 키워드의 복습 퀴즈 조회",
+            description = "키워드 ID를 통해 해당 단어와 연동된 퀴즈 1문제를 조회합니다. (정답과 해설은 보안상 제외)")
+    @GetMapping("/api/v1/keywords/{keyword_id}/quiz") // 💡 명세서에 명시된 URL 절대 경로 매핑
+    public ResponseEntity<?> getKeywordQuiz(
+            @RequestHeader("Authorization") String token,
+            @PathVariable("keyword_id") Long keywordId
+    ) {
+        // 400 에러 방어
+        if (keywordId == null || keywordId <= 0) {
+            return ResponseEntity.badRequest().body("키워드 ID 입력값 오류");
+        }
+
+        try {
+            // 퀴즈 서비스 레이어 호출 (여기서는 편의상 newsService에 구현한다고 가정합니다)
+            KeywordQuizResponse responseData = newsService.getKeywordQuizByKeywordId(keywordId);
+
+            // 명세서 양식대로 리턴 포장
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", "SUCCESS");
+            result.put("message", "해당 키워드의 퀴즈 조회가 완료되었습니다.");
+            result.put("data", responseData);
+
+            return ResponseEntity.ok(result);
+
+        } catch (IllegalArgumentException e) {
+            // 404 에러 처리: 연동된 퀴즈가 없을 때
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // Swagger 출력용 내부 DTO
     @Getter
     @AllArgsConstructor
     static class WorkflowResult {

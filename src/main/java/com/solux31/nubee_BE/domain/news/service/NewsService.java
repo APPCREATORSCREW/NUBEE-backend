@@ -2,9 +2,9 @@ package com.solux31.nubee_BE.domain.news.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.solux31.nubee_BE.domain.news.dto.MainKeywordResult;
-import com.solux31.nubee_BE.domain.news.dto.NewsAnalysisResult;
-import com.solux31.nubee_BE.domain.news.dto.NaverNewsResponse;
+import com.solux31.nubee_BE.domain.auth.entity.User;
+import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
+import com.solux31.nubee_BE.domain.news.dto.*;
 import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import com.solux31.nubee_BE.domain.news.entity.Quiz;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
@@ -28,6 +28,7 @@ public class NewsService {
     private final QuizRepository quizRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final NewsTransactionHelper newsTransactionHelper;
+    private final UserRepository userRepository;
 
     /**
      * [전체 데일리 뉴스 생성 파이프라인]
@@ -173,5 +174,116 @@ public class NewsService {
             e.printStackTrace();
             return new ArrayList<>();
         }
+    }
+    @Transactional(readOnly = true)
+    public TodayNewsResponse getBalancedTodayNewsForUser(Long userId) {
+        // 1. 유저 테이블에서 해당 유저의 설정 정보 가져오기
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+
+        // 2. ERD에 명시된 preferred_keyword_count 컬럼 값 꺼내기
+        int userPreferredCount = user.getPreferredKeywordCount();
+
+        // 3~6개 범위를 벗어나는 예외 상황 방어벽
+        if (userPreferredCount < 3 || userPreferredCount > 6) {
+            userPreferredCount = 6; // 에러 방지용 기본값 스왑
+        }
+
+        // 3. 오늘 DB에 저장된 데일리 뉴스 8개 로드
+        List<DailyNews> allTodayNews = dailyNewsRepository.findAll();
+
+        if (allTodayNews == null || allTodayNews.isEmpty()) {
+            return new TodayNewsResponse(0, new ArrayList<>());
+        }
+
+        // 4. 지그재그 배치 알고리즘 실행
+        List<DailyNews> balancedList = rearrangeByCategorySequence(allTodayNews);
+
+        // 5. ✨ 유저가 설정한 preferred_keyword_count 만큼 정확하게 리스트 슬라이싱!
+        int targetSize = Math.min(userPreferredCount, balancedList.size());
+        List<DailyNews> selectedNews = balancedList.subList(0, targetSize);
+
+        // 6. DTO 변환 및 매핑 (기존 로직 동일)
+        List<TodayNewsResponse.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
+            TodayNewsResponse.MainKeywordDto keywordDto = new TodayNewsResponse.MainKeywordDto(
+                    12L, news.getMainKeyword(), "설명 텍스트", "예문 텍스트", "MAIN"
+            );
+
+            return new TodayNewsResponse.NewsDto(
+                    news.getNewsId(),
+                    convertToEngCategory(news.getCategory()),
+                    news.getTitle(),
+                    news.getSummary(),
+                    "이미지URL",
+                    keywordDto
+            );
+        }).toList();
+
+        return new TodayNewsResponse(newsDtoList.size(), newsDtoList);
+    }
+
+    /**
+     * [명세서 반영] 특정 키워드 ID에 매칭된 KEYWORD 타입 퀴즈 조회 (정답/해설 제외 버전)
+     */
+    @Transactional(readOnly = true)
+    public KeywordQuizResponse getKeywordQuizByKeywordId(Long keywordId) {
+        // 1. Quiz 레포지토리에서 keywordId와 타입이 "KEYWORD"인 데이터 1건 찾기
+        // (💡 QuizRepository에 findByKeywordIdAndQuizType 메서드가 정의되어 있어야 합니다!)
+        Quiz quiz = quizRepository.findByKeywordIdAndQuizType(keywordId, "KEYWORD")
+                .orElseThrow(() -> new IllegalArgumentException("해당 키워드에 연결된 퀴즈 존재하지 않음"));
+
+        List<KeywordQuizResponse.OptionDto> parsedOptions = new ArrayList<>();
+
+        try {
+            // 2. DB에 텍스트(JSON)로 저장된 ["선지1", "선지2", ...] 꺼내서 List<String>으로 복원
+            List<String> rawOptions = objectMapper.readValue(quiz.getOptionsJson(), new TypeReference<List<String>>() {});
+
+            // 3. 프론트엔드 요구 스펙에 맞춰 번호(1~4) 매겨서 변환
+            for (int i = 0; i < rawOptions.size(); i++) {
+                parsedOptions.add(new KeywordQuizResponse.OptionDto(i + 1, rawOptions.get(i)));
+            }
+        } catch (Exception e) {
+            System.err.println("🚨 퀴즈 보기 JSON 파싱 중 오류 발생");
+            e.printStackTrace();
+        }
+
+        // 4. 최종 DTO 조립 (정답과 해설은 빼고 빌드)
+        return new KeywordQuizResponse(
+                quiz.getQuizId(),
+                quiz.getNewsId(), // 어떤 뉴스와 연결되어 있는지 ERD 매핑값
+                quiz.getKeywordId(),
+                quiz.getQuizType(),
+                quiz.getQuestion(),
+                parsedOptions
+        );
+    }
+
+     // [추가] 카테고리별 뉴스를 [경제, 사회, 과학, 세계, 경제, 사회...] 순서로 지그재그 배치하여 균등 분배하는 정렬 헬퍼
+    private List<DailyNews> rearrangeByCategorySequence(List<DailyNews> source) {
+        List<DailyNews> economy = source.stream().filter(n -> "경제".equals(n.getCategory())).toList();
+        List<DailyNews> society = source.stream().filter(n -> "사회".equals(n.getCategory())).toList();
+        List<DailyNews> science = source.stream().filter(n -> "과학".equals(n.getCategory())).toList();
+        List<DailyNews> world = source.stream().filter(n -> "세계".equals(n.getCategory())).toList();
+
+        List<DailyNews> result = new ArrayList<>();
+        int maxSize = Math.max(Math.max(economy.size(), society.size()), Math.max(science.size(), world.size()));
+
+        for (int i = 0; i < maxSize; i++) {
+            if (i < economy.size()) result.add(economy.get(i));
+            if (i < society.size()) result.add(society.get(i));
+            if (i < science.size()) result.add(science.get(i));
+            if (i < world.size()) result.add(world.get(i));
+        }
+        return result;
+    }
+     // 프론트엔드 API 명세서 규격에 맞게 DB의 한글 카테고리명을 영문 대문자로 변환해주는 매퍼
+    private String convertToEngCategory(String korCategory) {
+        return switch (korCategory) {
+            case "경제" -> "ECONOMY";
+            case "사회" -> "SOCIETY";
+            case "과학" -> "SCIENCE";
+            case "세계" -> "WORLD";
+            default -> "GENERAL";
+        };
     }
 }

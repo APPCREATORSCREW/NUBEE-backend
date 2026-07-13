@@ -1,0 +1,18 @@
+package com.solux31.nubee_BE.domain.words.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+public class KeywordDetailResponse {
+    private Long keyword_id;
+    private String word;
+    private String explanation;
+    private String example_sentence;
+    private String keyword_type;
+}

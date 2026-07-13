@@ -1,5 +1,6 @@
 package com.solux31.nubee_BE.domain.words.service;
 
+import com.solux31.nubee_BE.domain.words.dto.KeywordDetailResponse;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
 import lombok.RequiredArgsConstructor;
@@ -75,5 +76,22 @@ public class WordService {
 
             keywordRepository.save(newKeyword);
         }
+    }
+    
+    @Transactional(readOnly = true)
+    public KeywordDetailResponse getKeywordDetail(Long keywordId) {
+        // 1. DB에서 키워드 ID로 조회하고, 없으면 404용 예외(IllegalArgumentException) 발생시키기
+        Keyword keyword = keywordRepository.findById(keywordId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 키워드 ID"));
+
+        // 2. 조회한 엔티티 데이터를 명세서 규격 DTO에 알맞게 매핑해서 리턴!
+        // (주의: 엔티티의 실제 컬럼명 필드에 맞춰 대입해 주시면 됩니다. 예: keyword.getWord() 등)
+        return new KeywordDetailResponse(
+                keyword.getKeywordId(),
+                keyword.getWord(),
+                keyword.getExplanation(),
+                keyword.getExampleSentence() != null ? keyword.getExampleSentence() : "예문이 존재하지 않습니다.", // null 방어
+                keyword.getKeywordType() != null ? keyword.getKeywordType() : "MAIN"
+        );
     }
 }
