@@ -24,6 +24,9 @@ public class UserQuizLog {
     @Column(nullable = false)
     private Long quizId; // 어떤 퀴즈를 풀었는지
 
+    @Column(nullable = false, length = 20)
+    private String category;
+
     @Column(nullable = false)
     private int selectedAnswer; // 아이가 실제 마우스로 고른 번호
 

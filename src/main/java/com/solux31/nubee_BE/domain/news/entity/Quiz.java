@@ -33,4 +33,19 @@ public class Quiz {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String explanation; // 퀴즈 오답노트용 해설지
+
+    @Column(nullable = false, length = 20)
+    private String category;
+
+    @Builder
+    public Quiz(String quizType, String question, String optionsJson, int answer, String explanation, Long newsId, Long keywordId, String category) {
+        this.quizType = quizType;
+        this.question = question;
+        this.optionsJson = optionsJson;
+        this.answer = answer;
+        this.explanation = explanation;
+        this.newsId = newsId;
+        this.keywordId = keywordId;
+        this.category = category; 
+    }
 }
