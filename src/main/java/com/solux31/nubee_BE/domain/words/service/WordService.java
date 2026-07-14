@@ -1,5 +1,6 @@
 package com.solux31.nubee_BE.domain.words.service;
 
+import com.solux31.nubee_BE.domain.news.dto.NewsAnalysisResult;
 import com.solux31.nubee_BE.domain.words.dto.KeywordDetailResponse;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
@@ -19,17 +20,18 @@ public class WordService {
     /**
      * [1단계 연동] 메인 키워드와 서브 키워드들을 받아 DB에 중복 없이 저장
      * 엔티티의 nullable = false 제약 조건을 충족하기 위해 newsId를 인자로 받음
+     * * 🟢 [변경] subKeywordNames 대신 객체 리스트(subKeywords)를 받아 단어와 뜻을 함께 저장합니다.
      */
     @Transactional
-    public void saveKeywords(String mainKeywordName, List<String> subKeywordNames, Long newsId) {
+    public void saveKeywords(String mainKeywordName, List<NewsAnalysisResult.SubKeyword> subKeywords, Long newsId) {
 
-        // 1. 메인 키워드 중복 체크 후 저장 (타입을 "MAIN"으로 명시)
-        saveIfAbsent(mainKeywordName, "MAIN", newsId);
+        // 1. 메인 키워드 중복 체크 후 저장 (타입을 "MAIN"으로 명시, 1단계 시점에는 뜻이 없으므로 빈 문자열)
+        saveIfAbsent(mainKeywordName, "", "MAIN", newsId);
 
-        // 2. 서브 키워드 리스트 돌면서 중복 체크 후 저장 (타입을 "SUB"으로 명시)
-        if (subKeywordNames != null) {
-            for (String subName : subKeywordNames) {
-                saveIfAbsent(subName, "SUB", newsId);
+        // 2. 서브 키워드 리스트 돌면서 중복 체크 후 저장 (타입을 "SUB"으로 명시, 뜻 설명도 함께 저장!)
+        if (subKeywords != null) {
+            for (NewsAnalysisResult.SubKeyword sub : subKeywords) {
+                saveIfAbsent(sub.getWord(), sub.getExplanation(), "SUB", newsId);
             }
         }
     }
@@ -38,7 +40,7 @@ public class WordService {
      * [2단계 연동] Gemini가 새로 생성한 마스터 설명(뜻)을 단어 테이블에 업데이트
      */
     @Transactional
-    public Long updateKeywordExplanations(String keywordName, String explanation) {
+    public Long updateKeywordExplanations(String keywordName, String explanation, String exampleSentence) { // 👈 1. 매개변수 추가!
         // 1. keywordRepository를 사용해 단어를 찾음
         Optional<Keyword> keywordOpt = keywordRepository.findByWord(keywordName);
 
@@ -47,6 +49,8 @@ public class WordService {
 
             // 2. 엔티티 내부에 작성한 업데이트 비즈니스 메서드를 호출
             keyword.updateExplanation(explanation);
+
+            keyword.updateExampleSentence(exampleSentence); // 👈 2. 예문 업데이트 로직 추가!
 
             // 3. 퀴즈 저장할 때 쓸 수 있도록, 이 단어의 고유 ID를 반환(return)
             return keyword.getKeywordId();
@@ -59,8 +63,9 @@ public class WordService {
 
     /**
      * 이미 존재하는 단어인지 검사하고, 없을 때만 새 엔티티를 만들어 저장하는 헬퍼 메서드
+     * * 🟢 [변경] 단어 뜻(explanation)을 인자로 받아 저장 로직에 반영합니다.
      */
-    private void saveIfAbsent(String wordName, String type, Long newsId) {
+    private void saveIfAbsent(String wordName, String explanation, String type, Long newsId) {
         if (wordName == null || wordName.trim().isEmpty()) return;
 
         // 레포지토리 규격에 맞춰 findByWord로 변경
@@ -69,7 +74,7 @@ public class WordService {
         if (existingKeyword.isEmpty()) {
             Keyword newKeyword = Keyword.builder()
                     .word(wordName)
-                    .explanation("")     // 1단계 시점에는 설명이 아직 없으므로 빈 문자열(nullable=false 대비)
+                    .explanation(explanation != null ? explanation : "") // 받아온 뜻 정보를 빌더에 세팅 (null 방어)
                     .keywordType(type)   // "MAIN" 또는 "SUB"
                     .newsId(newsId)      // 연관된 뉴스 외래키 ID
                     .build();

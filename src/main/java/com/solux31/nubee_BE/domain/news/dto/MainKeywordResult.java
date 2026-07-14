@@ -1,6 +1,7 @@
 package com.solux31.nubee_BE.domain.news.dto;
 //main 키워드 묶음용
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 import java.util.List;
@@ -9,7 +10,11 @@ import java.util.List;
 public class MainKeywordResult {
     private String keyword;             // 메인 키워드 명
     private String explanation;         // 초등학생용 설명
-    private KeywordQuiz keywordQuiz;    // 키워드 관련 퀴즈 내용
+
+    @JsonProperty("example_sentence")
+    private String exampleSentence;
+
+    private KeywordQuiz keywordQuiz;   // 키워드 관련 퀴즈 내용
 
     @Getter @Setter
     public static class KeywordQuiz {

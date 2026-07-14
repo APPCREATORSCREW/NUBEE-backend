@@ -33,12 +33,24 @@ public class NewsTransactionHelper {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String processSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String categoryName) throws Exception {
         String articleBody = "";
+        String imageUrl = null;
 
         // 1. 크롤링 및 Fallback 처리
         try {
             System.out.println("기사 링크로 크롤링 시도 중... URL: " + naverNews.getLink());
-            var document = Jsoup.connect(naverNews.getLink()).timeout(5000).get();
+
+            var document = Jsoup.connect(naverNews.getLink())
+                    .timeout(5000)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    .get();
+
             articleBody = document.body().text();
+
+            var imgMeta = document.select("meta[property=og:image]").first();
+            if (imgMeta != null) {
+                imageUrl = imgMeta.attr("content");
+                System.out.println("📸 기사 썸네일 이미지 크롤링 성공!: " + imageUrl);
+            }
 
             if (articleBody == null || articleBody.trim().isEmpty()) {
                 throw new Exception("본문이 비어있습니다.");
@@ -47,6 +59,14 @@ public class NewsTransactionHelper {
         } catch (Exception e) {
             System.out.println("⚠️ 기사 크롤링 실패로 description 대체 실행: " + naverNews.getLink());
             articleBody = naverNews.getDescription();
+        }
+
+        if (imageUrl == null || imageUrl.trim().isEmpty()) {
+            imageUrl = "https://my-service.com/images/default-nubee.png"; // 나중에 실제 누비 기본 이미지 URL로 교체하세요!
+        }
+
+        if (articleBody == null || articleBody.trim().isEmpty()) {
+            throw new Exception("본문이 비어있습니다.");
         }
 
         // 2. Gemini 호출
@@ -63,17 +83,14 @@ public class NewsTransactionHelper {
                 .summary(result.getSummary())
                 .mainKeyword(result.getMainKeyword())
                 .category(categoryName)
+                .imageUrl(imageUrl)
                 .build();
         DailyNews savedNews = dailyNewsRepository.save(news);
         System.out.println("[DB 저장 완료] DailyNews ID: " + savedNews.getNewsId());
 
         // Word 도메인 위임
         // subKeywords 객체 리스트에서 'word' 텍스트만 뽑아서 List<String>으로 변환
-        List<String> subKeywordNames = result.getSubKeywords().stream()
-                .map(NewsAnalysisResult.SubKeyword::getWord)
-                .toList();
-
-        wordService.saveKeywords(result.getMainKeyword(), subKeywordNames, savedNews.getNewsId());
+        wordService.saveKeywords(result.getMainKeyword(), result.getSubKeywords(), savedNews.getNewsId());
         System.out.println("[DB 저장 완료] 메인/서브 키워드 동기화 완료");
 
         // 뉴스 관련 객관식 퀴즈 적재
@@ -111,7 +128,7 @@ public class NewsTransactionHelper {
                         "1. summary: 기사 전체 본문을 바탕으로 초등학교 3~4학년 눈높이에 맞춰 친절하게 요약한 요약문.\n" +
                         "   - [텍스트 구조 및 분량 제약]: **반드시 딱 2개 또는 3개의 소제목 문단 구조**로만 나누어 작성해줘. (너무 길어지지 않게 조절)\n" +
                         "   - 각 문단은 반드시 **'소제목'**으로 시작해야 해. (예: 🎬 반도체가 잘 팔리고 있어요)\n" +
-                        "   - 소제목 아래의 본문 내용은 문단당 3~4문장 내외로 작성해줘.\n" +
+                        "   - 소제목 아래의 본문 내용은 문단당 4~5문장 내외로 작성해줘.\n" +
                         "   - [말투 규칙]: '~하는 거예요.', '~와 같아요.', '~처럼요!' 같은 다정하고 친근한 초등용 구어체 스토리텔링 말투를 사용해줘.\n" +
                         "   - [비유 규칙]: 뉴스에 나오는 어려운 경제/사회 수치나 개념은 아이들이 상상할 수 있는 일상적인 비유( 예: 냄비 불을 줄이는 것, 지폐를 쌓는 것 등)를 1개 이상 섞어줘.\n" +
                         "2. mainKeyword: 기사의 핵심이 되는 메인 키워드 딱 1개 (단어 이름만 출력)\n" +

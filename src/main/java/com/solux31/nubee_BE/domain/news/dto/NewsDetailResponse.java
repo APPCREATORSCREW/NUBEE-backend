@@ -27,5 +27,6 @@ public class NewsDetailResponse {
         private Long keyword_id;
         private String word;
         private String keyword_type;
+        private String explanation;
     }
 }
