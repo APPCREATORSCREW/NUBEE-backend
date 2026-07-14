@@ -11,6 +11,8 @@ import com.solux31.nubee_BE.domain.news.entity.UserQuizLog;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
+import com.solux31.nubee_BE.domain.words.entity.Keyword;
+import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
 import com.solux31.nubee_BE.domain.words.service.WordService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class NewsService {
     private final NewsTransactionHelper newsTransactionHelper;
     private final UserRepository userRepository;
     private final UserQuizLogRepository userQuizLogRepository;
+    private final KeywordRepository keywordRepository;
 
     /**
      * [전체 데일리 뉴스 생성 파이프라인]
@@ -270,7 +273,7 @@ public class NewsService {
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
 
-        // 2. 400 방어: 로그 테이블에서 keywordId를 뺐으므로, 이제는 quizId 기반으로 중복 풀이 검사!
+        // 2. 400 방어: 로그 테이블에서 keywordId를 뺐으므로, 이제는 quizId 기반으로 중복 풀이 검사
         boolean alreadySolved = userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id());
         if (alreadySolved) {
             throw new IllegalArgumentException("이미 완료된 키워드 퀴즈에 대한 제출 요청");
@@ -309,6 +312,39 @@ public class NewsService {
                 quiz.getAnswer(),
                 quiz.getExplanation(),
                 pointResult
+        );
+    }
+
+    /**
+     * [명세서 반영] 뉴스 상세 정보 및 해당 뉴스에 엮인 모든 키워드(MAIN/SUB) 추출 로직
+     */
+    @Transactional(readOnly = true)
+    public NewsDetailResponse getNewsDetailWithKeywords(Long newsId) {
+        // 1. DB에서 특정 뉴스 기사 가져오기 (없으면 404)
+        DailyNews news = dailyNewsRepository.findById(newsId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 뉴스 기사 ID"));
+
+        // 2. 💡 [핵심] Keyword 테이블에서 이 newsId를 소유한 단어들을 모조리 긁어오기!
+        // (KeywordRepository에 List<Keyword> findByNewsId(Long newsId); 정의 필요)
+        List<Keyword> keywordList = keywordRepository.findByNewsId(newsId);
+
+        // 3. 엔티티 리스트를 프론트엔드가 요구한 관련 키워드 DTO 배열로 가공
+        List<NewsDetailResponse.RelatedKeywordDto> relatedKeywords = keywordList.stream()
+                .map(k -> new NewsDetailResponse.RelatedKeywordDto(
+                        k.getKeywordId(),
+                        k.getWord(),
+                        k.getKeywordType()
+                )).toList();
+
+        // 4. 최종 규격으로 조립하여 리턴 (카테고리는 영문 대문자로)
+        return new NewsDetailResponse(
+                news.getNewsId(),
+                convertToEngCategory(news.getCategory()),
+                news.getTitle(),
+                news.getSummary(),
+                news.getImageUrl() != null ? news.getImageUrl() : "기본이미지URL",
+                news.getOriginalUrl() != null ? news.getOriginalUrl() : "원문출처없음",
+                relatedKeywords
         );
     }
 

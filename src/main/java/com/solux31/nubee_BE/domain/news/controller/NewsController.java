@@ -1,9 +1,6 @@
 package com.solux31.nubee_BE.domain.news.controller;
 
-import com.solux31.nubee_BE.domain.news.dto.KeywordQuizResponse;
-import com.solux31.nubee_BE.domain.news.dto.QuizSubmitRequest;
-import com.solux31.nubee_BE.domain.news.dto.QuizSubmitResponse;
-import com.solux31.nubee_BE.domain.news.dto.TodayNewsResponse;
+import com.solux31.nubee_BE.domain.news.dto.*;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.service.NewsService;
@@ -183,6 +180,43 @@ public class NewsController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
             }
             return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * [명세서 반영] 특정 뉴스 요약 및 연관 키워드 조회
+     * GET /api/v1/news/{news_id}
+     */
+    @Operation(summary = "특정 뉴스 상세 및 요약 정보 조회",
+            description = "뉴스 ID를 통해 어린이용 요약 본문과 본문에 하이라이팅될 연관 단어 리스트를 반환합니다.")
+    @GetMapping("/{news_id}")
+    public ResponseEntity<?> getNewsDetail(
+            @RequestHeader("Authorization") String token,
+            @PathVariable("news_id") Long newsId
+    ) {
+        // 400 에러 방어: ID값 유효성 검증
+        if (newsId == null || newsId <= 0) {
+            return ResponseEntity.badRequest().body("뉴스 ID 입력값 오류");
+        }
+
+        try {
+            // NewsService를 통해 가공된 상세 데이터 접수
+            NewsDetailResponse responseData = newsService.getNewsDetailWithKeywords(newsId);
+
+            // 명세서 규격 포장 (SUCCESS)
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", "SUCCESS");
+            result.put("message", "특정 뉴스 상세 및 요약 정보 조회가 완료되었습니다.");
+            result.put("data", responseData);
+
+            return ResponseEntity.ok(result);
+
+        } catch (IllegalArgumentException e) {
+            // 404 에러 처리: DB에 해당 기사 ID가 없을 때
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
