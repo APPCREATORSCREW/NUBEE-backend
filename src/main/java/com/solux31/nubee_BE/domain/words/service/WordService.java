@@ -77,21 +77,31 @@ public class WordService {
             keywordRepository.save(newKeyword);
         }
     }
-    
+
     @Transactional(readOnly = true)
     public KeywordDetailResponse getKeywordDetail(Long keywordId) {
-        // 1. DB에서 키워드 ID로 조회하고, 없으면 404용 예외(IllegalArgumentException) 발생시키기
         Keyword keyword = keywordRepository.findById(keywordId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 키워드 ID"));
 
-        // 2. 조회한 엔티티 데이터를 명세서 규격 DTO에 알맞게 매핑해서 리턴!
-        // (주의: 엔티티의 실제 컬럼명 필드에 맞춰 대입해 주시면 됩니다. 예: keyword.getWord() 등)
+        // 기본적으로 예문을 가공해서 꺼내오되
+        String example = keyword.getExampleSentence();
+
+        // 만약 SUB 타입(본문 팝업용 단순 단어)이라면 예문은 비우기
+        if ("SUB".equals(keyword.getKeywordType())) {
+            example = null; // 또는 "" (빈 문자열)
+        } else {
+            // MAIN 키워드인데 DB에 예문이 비어있을 때를 위한 안전장치
+            if (example == null || example.trim().isEmpty()) {
+                example = "'" + keyword.getWord() + "' 단어가 쓰인 멋진 예문을 준비 중이에요!";
+            }
+        }
+
         return new KeywordDetailResponse(
                 keyword.getKeywordId(),
                 keyword.getWord(),
                 keyword.getExplanation(),
-                keyword.getExampleSentence() != null ? keyword.getExampleSentence() : "예문이 존재하지 않습니다.", // null 방어
-                keyword.getKeywordType() != null ? keyword.getKeywordType() : "MAIN"
+                example, // 가공된 예문 대입 (SUB는 null, MAIN은 알찬 예문)
+                keyword.getKeywordType()
         );
     }
 }
