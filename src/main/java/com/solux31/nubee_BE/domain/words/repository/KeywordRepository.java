@@ -35,4 +35,7 @@ public interface KeywordRepository extends JpaRepository<Keyword, Long> {
      * @return 필터링된 키워드 리스트
      */
     List<Keyword> findByNewsIdAndKeywordType(Long newsId, String keywordType);
+
+
+    Optional<Keyword> findByWordAndNewsId(String word, Long newsId);
 }

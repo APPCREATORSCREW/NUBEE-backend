@@ -14,6 +14,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Component
 @RequiredArgsConstructor
 public class NewsTransactionHelper {
@@ -66,7 +68,12 @@ public class NewsTransactionHelper {
         System.out.println("[DB 저장 완료] DailyNews ID: " + savedNews.getNewsId());
 
         // Word 도메인 위임
-        wordService.saveKeywords(result.getMainKeyword(), result.getSubKeywords(), savedNews.getNewsId());
+        // subKeywords 객체 리스트에서 'word' 텍스트만 뽑아서 List<String>으로 변환
+        List<String> subKeywordNames = result.getSubKeywords().stream()
+                .map(NewsAnalysisResult.SubKeyword::getWord)
+                .toList();
+
+        wordService.saveKeywords(result.getMainKeyword(), subKeywordNames, savedNews.getNewsId());
         System.out.println("[DB 저장 완료] 메인/서브 키워드 동기화 완료");
 
         // 뉴스 관련 객관식 퀴즈 적재

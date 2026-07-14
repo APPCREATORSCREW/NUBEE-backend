@@ -6,18 +6,18 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import java.util.List;
 
-//특정키워드퀴즈조회에 사용하는 dto
+//특정퀴즈조회에 사용하는 dto
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class KeywordQuizResponse {
+public class QuizResponse {
     private Long quiz_id;
     private Long news_id;
-    private Long keyword_id;
-    private String quiz_type;
+    private Long keyword_id; // 뉴스 퀴즈일 때는 null, 키워드 퀴즈일 때는 id가 담김
+    private String quiz_type; // "KEYWORD" 또는 "NEWS"
     private String question;
-    private List<OptionDto> options; // 파싱된 보기 배열
+    private List<OptionDto> options;
 
     @Getter
     @Setter

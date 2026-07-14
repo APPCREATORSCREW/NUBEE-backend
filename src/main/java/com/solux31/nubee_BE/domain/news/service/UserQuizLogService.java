@@ -27,19 +27,19 @@ public class UserQuizLogService {
     public boolean submitQuizAnswer(Long userId, QuizSubmitRequest request) {
 
         // 1. 중복 체크
-        if (userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuizId())) {
+        if (userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id())) {
             throw new IllegalStateException("이미 풀이한 퀴즈입니다.");
         }
 
         // 2. 퀴즈 및 유저 조회
-        Quiz quiz = quizRepository.findById(request.getQuizId())
+        Quiz quiz = quizRepository.findById(request.getQuiz_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈입니다."));
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
         // 3. 채점 진행
-        boolean isCorrect = (quiz.getAnswer() == request.getSelectedAnswer());
+        boolean isCorrect = (quiz.getAnswer() == request.getSelected_answer());
 
         // 4. 포인트 지급 (정답 시 10포인트)
         if (isCorrect) {
@@ -64,10 +64,10 @@ public class UserQuizLogService {
         UserQuizLog quizLog = UserQuizLog.builder()
                 .userId(userId)
                 .quizId(quiz.getQuizId())
-                .selectedAnswer(request.getSelectedAnswer()) // 사용자가 고른 답
+                .selectedAnswer(request.getSelected_answer()) // 사용자가 고른 답
                 .isCorrect(isCorrect)
                 .isCompleted(isAllCompleted)
-                .category(quiz.getCategory()) // 💡 퀴즈 엔티티나 뉴스 엔티티에서 카테고리를 가져와 넣어주세요!
+                .category(quiz.getCategory())
                 .build();
 
         userQuizLogRepository.save(quizLog);

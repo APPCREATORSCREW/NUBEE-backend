@@ -15,6 +15,4 @@ public interface UserQuizLogRepository extends JpaRepository<UserQuizLog, Long> 
     // 메서드 2: 카테고리 내 중복 검증용 (유지)
     boolean existsByUserIdAndCategoryAndQuizIdNot(Long userId, String category, Long quizId);
 
-    // [추가] 유저가 특정 키워드(단어)에 매칭된 퀴즈를 이미 풀었는지 검사
-    boolean existsByUserIdAndKeywordId(Long userId, Long keywordId);
 }
