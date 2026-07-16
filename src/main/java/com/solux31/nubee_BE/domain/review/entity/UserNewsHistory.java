@@ -1,10 +1,14 @@
 package com.solux31.nubee_BE.domain.review.entity;
 
+import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "user_news_history")
@@ -32,7 +36,7 @@ public class UserNewsHistory {
     public UserNewsHistory(DailyNews news, User user, LocalDateTime viewdAt) {
         this.news = news;
         this.user = user;
-        this.viewdAt = viewdAt;
+        this.viewedAt = viewedAt;
     }
 
 }

@@ -2,6 +2,7 @@ package com.solux31.nubee_BE.domain.review.controller;
 
 import com.solux31.nubee_BE.domain.review.dto.ReviewResDTO;
 import com.solux31.nubee_BE.domain.review.service.ReviewService;
+import com.solux31.nubee_BE.global.security.entity.AuthUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
