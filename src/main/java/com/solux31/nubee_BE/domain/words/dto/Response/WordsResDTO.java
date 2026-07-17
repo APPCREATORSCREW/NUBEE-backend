@@ -12,5 +12,4 @@ public class WordsResDTO {
     private String word;
     private String explanation;
     private String exampleSentence;
-    private boolean isLearned;
 }

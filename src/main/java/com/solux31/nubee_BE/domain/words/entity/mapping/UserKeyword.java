@@ -28,14 +28,6 @@ public class UserKeyword {
     @JoinColumn(name = "keyword_id", nullable = false)
     private Keyword keyword;
 
-    @Builder.Default
-    @Column(name = "is_bookmarked", nullable = false)
-    private boolean isBookmarked = false;
-
-    @Builder.Default
-    @Column(name = "is_learned", nullable = false)
-    private boolean isLearned = false;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
