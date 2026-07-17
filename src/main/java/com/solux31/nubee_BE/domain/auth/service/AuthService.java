@@ -20,6 +20,10 @@ import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
 import com.solux31.nubee_BE.domain.auth.repository.EmailVerificationRepository;
 import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
+import com.solux31.nubee_BE.domain.profile.entity.Skin;
+import com.solux31.nubee_BE.domain.profile.entity.UserSkin;
+import com.solux31.nubee_BE.domain.profile.repository.SkinRepository;
+import com.solux31.nubee_BE.domain.profile.repository.UserSkinRepository;
 import com.solux31.nubee_BE.global.email.EmailService;
 import com.solux31.nubee_BE.global.email.EmailVerificationEvent;
 import com.solux31.nubee_BE.global.security.util.JwtUtil;
@@ -48,6 +52,8 @@ public class AuthService {
     private final EmailVerificationRepository emailVerificationRepository;
     private final EmailService emailService;
     private final ApplicationEventPublisher eventPublisher;
+    private final SkinRepository skinRepository;
+    private final UserSkinRepository userSkinRepository;
 
     // 회원가입
     @Transactional
@@ -96,11 +102,25 @@ public class AuthService {
                 .preferredKeywordCount(request.getPreferredKeywordCount())
                 .parentEmail(isUnder14 ? request.getParentEmail() : null)
                 .isParentVerified(isParentVerified)
-                .currentSkin("DEFAULT")
                 .status(UserStatus.ACTIVE)
                 .build();
 
         userRepository.save(user);
+
+        // 기본 스킨 조회
+        Skin defaultSkin = skinRepository.findBySkinCode("DEFAULT")
+                .orElseThrow(() -> new IllegalArgumentException("기본 스킨이 존재하지 않습니다."));
+
+        // user_skin에 기본 스킨 지급
+        UserSkin userSkin = UserSkin.builder()
+                .user(user)
+                .skin(defaultSkin)
+                .acquiredAt(LocalDateTime.now())
+                .build();
+        userSkinRepository.save(userSkin);
+
+        // current_skin_id를 기본 스킨으로 설정
+        user.updateCurrentSkin(userSkin);
 
         // 토큰 발급
         String accessToken = jwtUtil.generateAccessToken(user.getEmail());

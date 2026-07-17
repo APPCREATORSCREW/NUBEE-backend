@@ -11,3 +11,4 @@ public interface UserSkinRepository extends JpaRepository<UserSkin, Long> {
     @Query("SELECT us FROM UserSkin us JOIN FETCH us.skin WHERE us.user.id = :userId")
     List<UserSkin> findAllByUserId(@Param("userId") Long userId);
 }
+
