@@ -40,8 +40,9 @@ public class ProfileService {
         List<UserSkin> ownedSkins = userSkinRepository.findAllByUserId(userId);
         List<ProfileResDTO.SkinInfo> skinInfos = profileConverter.toSkinInfoList(allSkins, ownedSkins);
 
-        Skin currentSkin = skinRepository.findById(user.getCurrentSkinId())
-                .orElseThrow(() -> new ProfileException(ProfileErrorCode.SKIN_NOT_FOUND));
+        // user.getCurrentSkin()이 이미 UserSkin 객체이므로, 거기서 Skin을 꺼냄
+        UserSkin currentUserSkin = user.getCurrentSkin();
+        Skin currentSkin = currentUserSkin.getSkin();  // UserSkin 안의 Skin 필드 사용
 
         return ProfileResDTO.Profile.builder()
                 .username(user.getUsername())
@@ -87,21 +88,16 @@ public class ProfileService {
     public ProfileResDTO.SkinApply applySkin(Long userId, ProfileReqDTO.SkinApply request) {
         User user = getUserOrThrow(userId);
 
-        boolean isOwned = userSkinRepository.findAllByUserId(userId).stream()
-                .anyMatch(us -> us.getSkin().getId().equals(request.getSkinId()));
+        UserSkin targetUserSkin = userSkinRepository.findAllByUserId(userId).stream()
+                .filter(us -> us.getSkin().getId().equals(request.getSkinId()))
+                .findFirst()
+                .orElseThrow(() -> new ProfileException(ProfileErrorCode.SKIN_NOT_OWNED));
 
-        if (!isOwned) {
-            throw new ProfileException(ProfileErrorCode.SKIN_NOT_OWNED);
-        }
-
-        Skin skin = skinRepository.findById(request.getSkinId())
-                .orElseThrow(() -> new ProfileException(ProfileErrorCode.SKIN_NOT_FOUND));
-
-        user.updateCurrentSkin(skin.getId());
+        user.updateCurrentSkin(targetUserSkin);
 
         return ProfileResDTO.SkinApply.builder()
-                .currentSkinId(skin.getId())
-                .currentSkinName(skin.getSkinName())
+                .currentSkinId(targetUserSkin.getSkin().getId())
+                .currentSkinName(targetUserSkin.getSkin().getSkinName())
                 .build();
     }
 

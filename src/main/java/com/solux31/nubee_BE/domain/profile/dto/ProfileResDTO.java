@@ -14,7 +14,8 @@ public class ProfileResDTO {
         private int currentLevel;
         private int currentPoint;
         private int currentStreak;
-        private Long currentSkinName;
+        private Long currentSkinId;
+        private String currentSkinName;
         private List<SkinInfo> skins;
     }
 

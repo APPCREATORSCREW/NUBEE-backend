@@ -8,6 +8,7 @@ import com.solux31.nubee_BE.domain.points.entity.PointHistory;
 import com.solux31.nubee_BE.domain.points.exception.PointsException;
 import com.solux31.nubee_BE.domain.points.exception.code.PointsErrorCode;
 import com.solux31.nubee_BE.domain.points.repository.PointsRepository;
+import com.solux31.nubee_BE.domain.profile.entity.Skin;
 import com.solux31.nubee_BE.domain.profile.entity.UserSkin;
 import com.solux31.nubee_BE.domain.profile.repository.SkinRepository;
 import com.solux31.nubee_BE.domain.profile.repository.UserSkinRepository;
@@ -52,7 +53,7 @@ public class PointsService {
         //포인트 적립
         user.updatePoint(amount);
 
-        boolean leveledUp = fasle;
+        boolean leveledUp = false;
         Skin newSkin = null;
 
         //50포인트마다 레벨업
