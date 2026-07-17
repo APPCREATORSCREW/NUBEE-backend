@@ -130,4 +130,8 @@ public class User {
         this.notificationEnabled = enabled;
         this.notificationTime = time;
     }
+
+    public void updateBirthDate(LocalDate birthDate) {
+        this.birthDate = birthDate;
+    }
 }
