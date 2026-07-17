@@ -70,7 +70,7 @@ public class User {
 
     @Builder.Default
     @Column(name = "notification_enabled", nullable = false)
-    private boolean notificationEnabled = true;
+    private boolean notificationEnabled = false;
 
     @Builder.Default
     @Column(name = "is_parent_verified", nullable = false)

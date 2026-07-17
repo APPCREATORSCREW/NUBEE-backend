@@ -32,8 +32,7 @@ public class UserKeywordService {
                         uk.getKeyword().getId(),
                         uk.getKeyword().getWord(),
                         uk.getKeyword().getExplanation(),
-                        uk.getKeyword().getExampleSentence(),
-                        uk.isLearned()
+                        uk.getKeyword().getExampleSentence()
                 ))
                 .collect(Collectors.toList());
     }
