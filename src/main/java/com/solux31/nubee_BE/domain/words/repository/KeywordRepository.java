@@ -1,19 +1,42 @@
 package com.solux31.nubee_BE.domain.words.repository;
 
+import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.entity.mapping.UserKeyword;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 
-public interface WordsRepository extends JpaRepository<UserKeyword, Long> {
+@Repository
+public interface KeywordRepository extends JpaRepository<Keyword, Long> {
 
-    // 유저의 단어 목록 조회
-    List<UserKeyword> findByUserId(Long userId);
+    /**
+     * 단어 이름(word)을 기준으로 기존에 등록된 키워드가 있는지 조회
+     * 1단계 중복 체크 및 2단계 설명(뜻) 업데이트 시 사용
+     *
+     * @param word 찾고자 하는 단어 이름 (ex: "금리", "우주선")
+     * @return 일치하는 Keyword 엔티티 (존재하지 않으면 Optional.empty())
+     */
+    Optional<Keyword> findByWord(String word);
 
-    // 특정 유저의 특정 단어 조회
-    Optional<UserKeyword> findByIdAndUserId(Long id, Long userId);
+    /**
+     * 특정 뉴스 ID에 속한 모든 키워드(MAIN, SUB 전체)를 조회하고 싶을 때 사용
+     *
+     * @param newsId DailyNews 테이블의 ID
+     * @return 해당 뉴스에 포함된 키워드 리스트
+     */
+    List<Keyword> findByNewsId(Long newsId);
 
-    // 이미 단어장에 있는지 확인
-    boolean existsByUserIdAndKeywordId(Long userId, Long keywordId);
+    /**
+     * 특정 뉴스 ID 안에서 메인 키워드 혹은 서브 키워드만 골라서 조회하고 싶을 때 사용
+     *
+     * @param newsId      DailyNews 테이블의 ID
+     * @param keywordType "MAIN" 또는 "SUB"
+     * @return 필터링된 키워드 리스트
+     */
+    List<Keyword> findByNewsIdAndKeywordType(Long newsId, String keywordType);
+
+
+    Optional<Keyword> findByWordAndNewsId(String word, Long newsId);
 }
