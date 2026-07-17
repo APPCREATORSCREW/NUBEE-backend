@@ -16,11 +16,11 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class WordsService {
+public class UserKeywordService {
 
+    private final UserKeywordRepository userKeywordRepository;
     private final KeywordRepository keywordRepository;
     private final UserRepository userRepository;
-    private final UserKeywordRepository userKeywordRepository;
 
     // 단어 리스트 조회
     @Transactional(readOnly = true)
