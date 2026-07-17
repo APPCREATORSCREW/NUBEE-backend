@@ -16,7 +16,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "프로필", description = "프로필 조회 및 설정 관련 API")
-@SecurityRequirement(name = "JWT TOKEN")
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
