@@ -42,6 +42,8 @@ public class QuizSubmitResponse {
     public static class LearningResultDto {
         private int earned_point;
         private int current_point;
+
+        @com.fasterxml.jackson.annotation.JsonProperty("is_completed") // 추가
         private boolean is_completed;
     }
 }

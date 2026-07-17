@@ -29,7 +29,7 @@ public class Quiz {
     private String optionsJson; //퀴즈 보기(옵션) json
 
     @Column(nullable = false)
-    private int answer; // 정답 번호 (예: 1, 2, 3)
+    private int answer; // 정답 번호
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String explanation; // 퀴즈 오답노트용 해설지
