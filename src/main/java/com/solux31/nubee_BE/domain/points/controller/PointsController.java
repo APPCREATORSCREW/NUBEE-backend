@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "포인트", description = "포인트 관련 API")
-@SecurityRequirement(name = "JWT TOKEN")
 @RestController
 @RequestMapping("/api/points")
 @RequiredArgsConstructor
