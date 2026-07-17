@@ -1,5 +1,7 @@
 package com.solux31.nubee_BE.domain.auth.service;
 
+import com.solux31.nubee_BE.domain.auth.dto.Request.BirthDateReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Request.KeywordCountReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.LoginReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.ParentEmailSendReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.ParentEmailVerifyReqDTO;
@@ -9,6 +11,7 @@ import com.solux31.nubee_BE.domain.auth.dto.Request.PasswordResetEmailReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.PasswordResetVerifyReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.SignupReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.TokenRefreshReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Response.BirthDateResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.SignupResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.TokenRefreshResDTO;
@@ -435,5 +438,32 @@ public class AuthService {
 
         // 인증 완료 처리
         verification.verify();
+    }
+
+    // 생년월일 저장
+    @Transactional
+    public BirthDateResDTO saveBirthDate(String email, BirthDateReqDTO request) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+
+        // 생년월일 저장
+        user.updateBirthDate(request.getBirthDate());
+
+        // 만 14세 미만 여부 계산
+        int age = Period.between(request.getBirthDate(), LocalDate.now()).getYears();
+        boolean isUnder14 = age < 14;
+
+        return new BirthDateResDTO(isUnder14);
+    }
+
+    // 키워드 개수 설정
+    @Transactional
+    public void saveKeywordCount(String email, KeywordCountReqDTO request) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+
+        user.updatePreferredKeywordCount(request.getPreferredKeywordCount());
     }
 }
