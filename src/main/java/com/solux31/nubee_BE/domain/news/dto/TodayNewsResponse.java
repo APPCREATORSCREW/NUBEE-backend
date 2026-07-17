@@ -19,7 +19,7 @@ public class TodayNewsResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class NewsDto {
-        private Long news_id;
+        private Long id;
         private String category;
         private String title;
         private String summary;
@@ -32,7 +32,7 @@ public class TodayNewsResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class MainKeywordDto {
-        private Long keyword_id;
+        private Long id;
         private String word;
         private String explanation;
         private String example_sentence;

@@ -1,5 +1,6 @@
 package com.solux31.nubee_BE.domain.news.entity;
 
+import com.solux31.nubee_BE.domain.words.entity.Keyword; // Keyword 임포트
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -12,28 +13,42 @@ public class Quiz {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long quizId;
+    @Column(name = "quiz_id") // DB 컬럼명은 일관성 있게 quiz_id로 매핑
+    private Long id;
 
-    @Column(nullable = true)
-    private Long newsId; // 어떤 뉴스 기사에 딸린 퀴즈인지
+    // 1. DailyNews와의 N:1 단방향 연관 관계 (FK: news_id)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "news_id", nullable = true)
+    private DailyNews dailyNews;
 
-    private Long keywordId; // 단어 퀴즈일 경우 어떤 단어의 퀴즈인지 (뉴스 퀴즈면 null 가능)
+    // 2. Keyword와의 N:1 단방향 연관 관계 (FK: keyword_id)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "keyword_id", nullable = true)
+    private Keyword keyword;
 
     @Column(nullable = false, length = 20)
-    private String quizType; // "KEYWORD" (단어퀴즈) 또는 "NEWS" (뉴스독해퀴즈)
+    private String quizType; // "KEYWORD" 또는 "NEWS"
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    private String question; // 퀴즈 문제 내용
+    private String question; // 퀴즈 질문
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    private String optionsJson; //퀴즈 보기(옵션) json
+    private String optionsJson; // 퀴즈 보기 JSON
 
     @Column(nullable = false)
     private int answer; // 정답 번호
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    private String explanation; // 퀴즈 오답노트용 해설지
+    private String explanation; // 퀴즈 해설
 
     @Column(nullable = false, length = 20)
     private String category;
+
+    public Long getNewsId() {
+        return this.dailyNews != null ? this.dailyNews.getId() : null;
+    }
+
+    public Long getKeywordId() {
+        return this.keyword != null ? this.keyword.getId() : null; // Keyword의 PK가 'id'로 바뀌었으므로 .getId() 호출
+    }
 }

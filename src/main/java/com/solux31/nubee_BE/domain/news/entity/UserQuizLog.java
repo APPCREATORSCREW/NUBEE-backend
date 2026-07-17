@@ -10,28 +10,29 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 @Table(name = "user_quiz_log", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_user_quiz", columnNames = {"userId", "quizId"})
-}) //제약 조건 추가, 같은 뮈즈 중복 제출 방지
+        @UniqueConstraint(name = "uk_user_quiz", columnNames = {"user_id", "quiz_id"})
+})
 public class UserQuizLog {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long logId;
+    @Column(name = "log_id") // DB 컬럼명은 log_id로 유지하되 자바 필드명은 id로
+    private Long id; // logId -> id로 변경
 
-    @Column(nullable = false)
-    private Long userId; // 문제를 푼 유저 ID
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
-    @Column(nullable = false)
-    private Long quizId; // 어떤 퀴즈를 풀었는지
+    @Column(name = "quiz_id", nullable = false)
+    private Long quizId;
 
     @Column(nullable = false, length = 20)
     private String category;
 
     @Column(nullable = false)
-    private int selectedAnswer; // 아이가 실제 마우스로 고른 번호
+    private int selectedAnswer;
 
     @Column(nullable = false)
-    private boolean isCorrect; // 맞췄는지 여부 (true/false)
+    private boolean isCorrect;
 
     @Column(nullable = false)
     private boolean isCompleted;

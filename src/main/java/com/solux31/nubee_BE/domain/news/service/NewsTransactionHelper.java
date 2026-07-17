@@ -26,16 +26,11 @@ public class NewsTransactionHelper {
     private final QuizRepository quizRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /**
-     * [핵심] REQUIRES_NEW를 통해 기존 트랜잭션과 완전히 분리된
-     * 새 독립 트랜잭션 주머니에서 실행됨. 실패 시 이 안의 내용만 롤백
-     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String processSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String categoryName) throws Exception {
         String articleBody = "";
         String imageUrl = null;
 
-        // 1. 크롤링 및 Fallback 처리
         try {
             System.out.println("기사 링크로 크롤링 시도 중... URL: " + naverNews.getLink());
 
@@ -62,20 +57,18 @@ public class NewsTransactionHelper {
         }
 
         if (imageUrl == null || imageUrl.trim().isEmpty()) {
-            imageUrl = "https://my-service.com/images/default-nubee.png"; // 나중에 실제 이미지로 교체 가능
+            imageUrl = "https://my-service.com/images/default-nubee.png";
         }
 
         if (articleBody == null || articleBody.trim().isEmpty()) {
             throw new Exception("본문이 비어있습니다.");
         }
 
-        // 2. Gemini 호출
         NewsAnalysisResult result = analyzeSingleNews(naverNews, articleBody);
         if (result == null) {
             throw new RuntimeException("Gemini 분석 결과가 null입니다.");
         }
 
-        // 3. DB 적재
         System.out.println("데이터베이스(MySQL) 적재 시작");
         DailyNews news = DailyNews.builder()
                 .title(naverNews.getTitle())
@@ -86,21 +79,23 @@ public class NewsTransactionHelper {
                 .imageUrl(imageUrl)
                 .build();
         DailyNews savedNews = dailyNewsRepository.save(news);
-        System.out.println("[DB 저장 완료] DailyNews ID: " + savedNews.getNewsId());
+        // DailyNews PK 변경 반영: savedNews.getNewsId() -> savedNews.getId()
+        System.out.println("[DB 저장 완료] DailyNews ID: " + savedNews.getId());
 
-        // Word 도메인 위임 (통째로 넘기도록 이미 반영됨)
-        wordService.saveKeywords(result.getMainKeyword(), result.getSubKeywords(), savedNews.getNewsId());
+        // Word 도메인 위임 및 DailyNews PK 변경 반영
+        wordService.saveKeywords(result.getMainKeyword(), result.getSubKeywords(), savedNews.getId());
         System.out.println("[DB 저장 완료] 메인/서브 키워드 동기화 완료");
 
-        // 뉴스 관련 객관식 퀴즈 적재
         String optionsJson = objectMapper.writeValueAsString(result.getNewsQuiz().getOptions());
+
+        // Quiz 엔티티 연관관계 변경 반영: newsId(Long) -> dailyNews(DailyNews) 객체 직접 대입
         Quiz newsQuiz = Quiz.builder()
                 .quizType("NEWS")
                 .question(result.getNewsQuiz().getQuestion())
                 .optionsJson(optionsJson)
-                .answer(result.getNewsQuiz().getAnswer()) // 프롬프트 개선으로 1~4 범위 번호가 그대로 저장됩니다.
+                .answer(result.getNewsQuiz().getAnswer())
                 .explanation(result.getNewsQuiz().getExplanation())
-                .newsId(savedNews.getNewsId())
+                .dailyNews(savedNews)
                 .category(categoryName)
                 .build();
         quizRepository.save(newsQuiz);
@@ -134,7 +129,7 @@ public class NewsTransactionHelper {
                         "4. newsQuiz: 뉴스 본문 내용을 잘 이해했는지 확인하는 독해력 확인용 4지선다 객관식 퀴즈\n" +
                         "   - 🚨 [퀴즈 출제 규칙]: 단순히 단어 뜻을 묻지 말고, **뉴스 본문 속 현상의 인과관계(예: ~를 하려는 이유는 무엇인가요?)**를 묻는 질문을 생성해줘.\n" +
                         "   - newsQuiz.answer (정답): 🚨 **[주의 - 매우 중요]** 정답은 인덱스(0,1,2,3)가 아닌 **실제 선지 번호인 1, 2, 3, 4 중 하나**로만 정확히 지정해줘. (0-based 인덱스 절대 금지!)\n" +
-                        "   - 🚨 **반드시 생성한 `options` 배열의 `(정답 번호 - 1)`번째 칸에 진짜 정답에 해당하는 문장**을 배치해줘. 예를 들어 `answer`가 2라면, `options` 배열의 2번째 항목에 정답에 알맞은 선지 문장이 들어가 있어야만 해. 둘의 매칭 싱크를 완벽하게 검증한 뒤 최종 JSON을 출력해줘.\n" + // 🟢 선지 정합성 가이드라인 얹어줌
+                        "   - 🚨 **반드시 생성한 `options` 배열의 `(정답 번호 - 1)`번째 칸에 진짜 정답에 해당하는 문장**을 배치해줘. 예를 들어 `answer`가 2라면, `options` 배열의 2번째 항목에 정답에 알맞은 선지 문장이 들어가 있어야만 해. 둘의 매칭 싱크를 완벽하게 검증한 뒤 최종 JSON을 출력해줘.\n" +
                         "   - newsQuiz.explanation(퀴즈 해설): '~처럼요!' 같은 구어체 말투를 유지하면서, 본문의 핵심 맥락을 짚어주는 친절한 해설을 2문장 이상 작성해줘.\n\n" +
 
                         "[⚠️ 팩트 기반 및 할루시네이션 방지 규칙]\n" +
@@ -162,7 +157,7 @@ public class NewsTransactionHelper {
                         "  \"newsQuiz\": {\n" +
                         "    \"question\": \"뉴스 본문 속 인과관계나 핵심 현상을 묻는 맥락 질문\",\n" +
                         "    \"options\": [\"확실한 오답 선지1\", \"뉴스 팩트에 기반한 정답 선지\", \"그럴듯한 오답 선지3\", \"헷갈리는 오답 선지4\"],\n" +
-                        "    \"answer\": 2,\n" + // 예시를 직관적인 2번으로 조율하여 인덱스 착시 현상 예방
+                        "    \"answer\": 2,\n" +
                         "    \"explanation\": \"왜 그것이 정답이고 오답인지 뉴스 맥락을 짚어주는 2문장 이상의 친절한 구어체 해설\"\n" +
                         "  }\n" +
                         "}\n\n" +
@@ -180,7 +175,6 @@ public class NewsTransactionHelper {
                 return null;
             }
 
-            // 세이프 가드: 혹시 모를 마크다운 주석 기호 찌꺼기 완벽 정화
             jsonResponse = jsonResponse.replaceAll("```json|```", "").trim();
 
             return objectMapper.readValue(jsonResponse, NewsAnalysisResult.class);

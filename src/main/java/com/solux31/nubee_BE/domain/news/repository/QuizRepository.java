@@ -9,8 +9,9 @@ import java.util.Optional;
 @Repository
 public interface QuizRepository extends JpaRepository<Quiz, Long> {
 
-    // 특정 뉴스 기사에 묶인 퀴즈 중, 내가 원하는 타입(KEYWORD 또는 NEWS)의 단 한 건만 명확히 조회
-    Optional<Quiz> findByNewsIdAndQuizType(Long newsId, String quizType);
+    // Quiz 안의 dailyNews 객체 내부 id를 참조하도록 변경 (dailyNews_Id 또는 dailyNewsId)
+    Optional<Quiz> findByDailyNewsIdAndQuizType(Long newsId, String quizType);
 
+    // Quiz 안의 keyword 객체 내부 id를 참조하도록 변경 (keyword_Id 또는 keywordId)
     Optional<Quiz> findByKeywordIdAndQuizType(Long keywordId, String quizType);
 }

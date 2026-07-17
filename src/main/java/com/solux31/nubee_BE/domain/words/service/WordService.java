@@ -53,7 +53,7 @@ public class WordService {
             keyword.updateExampleSentence(exampleSentence); // 👈 2. 예문 업데이트 로직 추가!
 
             // 3. 퀴즈 저장할 때 쓸 수 있도록, 이 단어의 고유 ID를 반환(return)
-            return keyword.getKeywordId();
+            return keyword.getId();
         }
 
         // 4. 만약 단어를 찾지 못했다면 null을 반환
@@ -102,7 +102,7 @@ public class WordService {
         }
 
         return new KeywordDetailResponse(
-                keyword.getKeywordId(),
+                keyword.getId(),
                 keyword.getWord(),
                 keyword.getExplanation(),
                 example, // 가공된 예문 대입 (SUB는 null, MAIN은 알찬 예문)

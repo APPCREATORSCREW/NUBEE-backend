@@ -50,12 +50,12 @@ public class UserQuizLogService {
 
         if ("NEWS".equals(quiz.getQuizType())) {
             // 지금 푸는 게 뉴스 퀴즈라면, 같은 뉴스ID를 가졌거나 같은 메인 키워드를 공유하는 단어 퀴즈(KEYWORD)를 풀었는지 DB에서 확인
-            boolean isKeywordQuizSolved = userQuizLogRepository.existsByUserIdAndCategoryAndQuizIdNot(userId, quiz.getCategory(), quiz.getQuizId());
+            boolean isKeywordQuizSolved = userQuizLogRepository.existsByUserIdAndCategoryAndQuizIdNot(userId, quiz.getCategory(), quiz.getId());
             isAllCompleted = isKeywordQuizSolved; // 단어 퀴즈까지 이미 풀려있었다면 완료!
 
         } else if ("KEYWORD".equals(quiz.getQuizType())) {
             // 지금 푸는 게 단어 퀴즈라면, 짝꿍인 뉴스 퀴즈(NEWS)가 이미 풀려있는지 확인
-            boolean isNewsQuizSolved = userQuizLogRepository.existsByUserIdAndCategoryAndQuizIdNot(userId, quiz.getCategory(), quiz.getQuizId());
+            boolean isNewsQuizSolved = userQuizLogRepository.existsByUserIdAndCategoryAndQuizIdNot(userId, quiz.getCategory(), quiz.getId());
             isAllCompleted = isNewsQuizSolved; // 뉴스 퀴즈까지 이미 풀려있었다면 완료!
         }
 
@@ -63,7 +63,7 @@ public class UserQuizLogService {
         // 엔티티에 정의한 필드들을 모두 채워줍니다.
         UserQuizLog quizLog = UserQuizLog.builder()
                 .userId(userId)
-                .quizId(quiz.getQuizId())
+                .quizId(quiz.getId())
                 .selectedAnswer(request.getSelected_answer()) // 사용자가 고른 답
                 .isCorrect(isCorrect)
                 .isCompleted(isAllCompleted)

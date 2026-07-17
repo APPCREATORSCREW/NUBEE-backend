@@ -11,7 +11,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class NewsDetailResponse {
-    private Long news_id;
+    private Long id;
     private String category;
     private String title;
     private String summary;
@@ -24,7 +24,7 @@ public class NewsDetailResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class RelatedKeywordDto {
-        private Long keyword_id;
+        private Long id;
         private String word;
         private String keyword_type;
         private String explanation;

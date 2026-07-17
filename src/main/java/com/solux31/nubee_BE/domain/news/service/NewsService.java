@@ -58,15 +58,12 @@ public class NewsService {
 
             for (NaverNewsResponse.NaverNewsItem naverNews : naverNewsList) {
                 try {
-                    // 1. 먼저 단일 뉴스를 처리하고 생성된 savedNewsId를 포함해 결과 객체 등을 받아오도록 유도하거나,
-                    // Helper 단에서 바로 메인 키워드 저장을 끝낼 때 newsId 관계 설정을 위해 news ID를 획득
-                    // (이해를 돕기 위해 processSingleNews가 newsId를 함께 추적할 수 있도록 helper를 태웁니다.)
                     String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName);
 
                     if (mainKeyword != null) {
-                        // 퀴즈의 뉴스 출처 정합성을 유지하기 위해 뉴스 엔티티를 단어 이름으로 단발성 조회
-                        DailyNews currentNews = dailyNewsRepository.findTopByMainKeywordOrderByNewsIdDesc(mainKeyword).orElse(null);
-                        Long newsId = (currentNews != null) ? currentNews.getNewsId() : null;
+                        // DailyNews PK 변경 반영: OrderByNewsIdDesc -> OrderByIdDesc
+                        DailyNews currentNews = dailyNewsRepository.findTopByMainKeywordOrderByIdDesc(mainKeyword).orElse(null);
+                        Long newsId = (currentNews != null) ? currentNews.getId() : null;
 
                         List<String> singleKeywordList = List.of(mainKeyword);
                         saveMasterKeywordsAndQuizzesInTransaction(singleKeywordList, categoryName, newsId);
@@ -85,9 +82,6 @@ public class NewsService {
         dailyNewsRepository.deleteAllInBatch();
     }
 
-    /**
-     * newsId를 파라미터로 추가로 전달받아 키워드 퀴즈 저장 시에도 출처 뉴스 정합성을 보장
-     */
     @Transactional
     public void saveMasterKeywordsAndQuizzesInTransaction(List<String> singleKeywordList, String categoryName, Long newsId) {
         List<MainKeywordResult> masterResults = generateMasterKeywordsAndQuizzes(singleKeywordList);
@@ -100,6 +94,12 @@ public class NewsService {
             );
 
             try {
+                // 연관 관계 객체 매핑을 위해 영속성 컨텍스트에서 엔티티 조회
+                Keyword keywordEntity = keywordRepository.findById(savedKeywordId)
+                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 키워드 ID입니다."));
+
+                DailyNews newsEntity = (newsId != null) ? dailyNewsRepository.findById(newsId).orElse(null) : null;
+
                 String optionsJson = objectMapper.writeValueAsString(master.getKeywordQuiz().getOptions());
                 Quiz keywordQuiz = Quiz.builder()
                         .quizType("KEYWORD")
@@ -107,8 +107,8 @@ public class NewsService {
                         .optionsJson(optionsJson)
                         .answer(master.getKeywordQuiz().getAnswer())
                         .explanation(master.getKeywordQuiz().getExplanation())
-                        .keywordId(savedKeywordId)
-                        .newsId(newsId) // KEYWORD 퀴즈 DB 저장 시에도 연관 newsId 매핑 (DB Not Null 제약조건 및 역방향 추적 완벽 보호)
+                        .keyword(keywordEntity)
+                        .dailyNews(newsEntity)
                         .category(categoryName)
                         .build();
                 quizRepository.save(keywordQuiz);
@@ -151,7 +151,7 @@ public class NewsService {
                         "3. example_sentence: [반드시 필수로 작성] 해당 메인 단어가 일상생활이나 실제 뉴스 상황 속에서 어떻게 구체적으로 쓰이는지 보여주는 초등학생 눈높이의 친절하고 완결된 예시 문장 딱 1개만 생성해줘.\n" +
                         "   - 🚨 (주의) 다른 필드에 들어가는 중복 설명을 베껴 쓰지 말고, 이 문장 단독으로 읽어도 상황이 완벽히 그려지는 독창적인 일상 대화나 행동 위주의 예문을 창작해내야 해.\n\n" +
 
-                        "4. keywordQuiz: 단어의 쓰임새와 현상을 묻는 4지선다 객관식 퀴즈\n" +
+                        "4. keywordQuiz: 단어의 쓰임새 and 현상을 묻는 4지선다 객관식 퀴즈\n" +
                         "   - 🚨 [단순 뜻 풀이 절대 금지]: '이 단어의 뜻은 무엇일까요?' 같은 단순 정의 찾기 문제는 절대 출제하지 마.\n" +
                         "   - 반드시 위 [explanation]의 2, 3단계에서 다룬 현상이나 인과관계(예: ~가 어떻게 되면 어떤 일이 일어날까요?)를 질문으로 던져줘.\n" +
                         "   - keywordQuiz.answer (정답): 🚨 **[주의 - 매우 중요]** 정답은 인덱스가 아닌 **실제 선지 번호인 1, 2, 3, 4 중 하나**로만 정확히 지정해줘. (0-based 인덱스 금지!)\n" +
@@ -218,10 +218,12 @@ public class NewsService {
         List<DailyNews> selectedNews = balancedList.subList(0, targetSize);
 
         List<TodayNewsResponse.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
-            Keyword realKeyword = keywordRepository.findByWordAndNewsId(news.getMainKeyword(), news.getNewsId())
+            // DailyNews PK 변경 반영: .getNewsId() -> .getId()
+            Keyword realKeyword = keywordRepository.findByWordAndNewsId(news.getMainKeyword(), news.getId())
                     .orElse(null);
 
-            Long keywordId = (realKeyword != null) ? realKeyword.getKeywordId() : 999L;
+            // Keyword PK 변경 반영: .getKeywordId() -> .getId()
+            Long keywordId = (realKeyword != null) ? realKeyword.getId() : 999L;
             String wordName = (realKeyword != null) ? realKeyword.getWord() : news.getMainKeyword();
             String explanation = (realKeyword != null) ? realKeyword.getExplanation() : "이 단어에 대한 설명이 준비되고 있어요.";
             String exampleSentence = (realKeyword != null && realKeyword.getExampleSentence() != null)
@@ -237,7 +239,7 @@ public class NewsService {
             );
 
             return new TodayNewsResponse.NewsDto(
-                    news.getNewsId(),
+                    news.getId(), // DailyNews PK 변경 반영: .getNewsId() -> .getId()
                     convertToEngCategory(news.getCategory()),
                     news.getTitle(),
                     news.getSummary(),
@@ -251,6 +253,7 @@ public class NewsService {
 
     @Transactional(readOnly = true)
     public QuizResponse getKeywordQuizByKeywordId(Long keywordId) {
+        // Quiz 연관 관계 탐색 필드 변경에 맞춘 Repository 조회 메소드 연동 필요
         Quiz quiz = quizRepository.findByKeywordIdAndQuizType(keywordId, "KEYWORD")
                 .orElseThrow(() -> new IllegalArgumentException("해당 키워드에 연결된 퀴즈 존재하지 않음"));
         return convertToQuizResponse(quiz, true);
@@ -258,7 +261,7 @@ public class NewsService {
 
     @Transactional(readOnly = true)
     public QuizResponse getNewsQuizByNewsId(Long newsId) {
-        Quiz quiz = quizRepository.findByNewsIdAndQuizType(newsId, "NEWS")
+        Quiz quiz = quizRepository.findByDailyNewsIdAndQuizType(newsId, "NEWS")
                 .orElseThrow(() -> new IllegalArgumentException("해당 뉴스 퀴즈 존재하지 않음"));
         return convertToQuizResponse(quiz, false);
     }
@@ -275,8 +278,9 @@ public class NewsService {
             e.printStackTrace();
         }
 
+        // Quiz PK 변경 반영: quiz.getQuizId() -> quiz.getId()
         return new QuizResponse(
-                quiz.getQuizId(),
+                quiz.getId(),
                 quiz.getNewsId(),
                 includeKeywordId ? quiz.getKeywordId() : null,
                 quiz.getQuizType(),
@@ -304,7 +308,7 @@ public class NewsService {
 
             UserQuizLog quizLog = UserQuizLog.builder()
                     .userId(userId)
-                    .quizId(quiz.getQuizId())
+                    .quizId(quiz.getId()) // quiz.getQuizId() -> quiz.getId()
                     .category(quiz.getCategory())
                     .selectedAnswer(request.getSelected_answer())
                     .isCorrect(isCorrect)
@@ -313,7 +317,6 @@ public class NewsService {
             userQuizLogRepository.save(quizLog);
         }
 
-        // 🟢 키워드 퀴즈에서도 완료(is_completed=true) 상태 및 획득 포인트를 DTO 명세에 맞게 함께 내려줍니다.
         QuizSubmitResponse.PointResultDto pointResult = new QuizSubmitResponse.PointResultDto(
                 earnedPoint,
                 user.getPoint()
@@ -322,17 +325,17 @@ public class NewsService {
         QuizSubmitResponse.LearningResultDto learningResult = new QuizSubmitResponse.LearningResultDto(
                 earnedPoint,
                 user.getPoint(),
-                true // 풀었으므로 항상 완료 처리
+                true
         );
 
         return new QuizSubmitResponse(
-                quiz.getQuizId(),
+                quiz.getId(), // quiz.getQuizId() -> quiz.getId()
                 request.getSelected_answer(),
                 isCorrect,
                 quiz.getAnswer(),
                 quiz.getExplanation(),
                 pointResult,
-                learningResult // JSON null 누락 방지 및 Swagger 명세 충족을 위해 매핑
+                learningResult
         );
     }
 
@@ -355,7 +358,7 @@ public class NewsService {
 
             UserQuizLog quizLog = UserQuizLog.builder()
                     .userId(userId)
-                    .quizId(quiz.getQuizId())
+                    .quizId(quiz.getId()) // quiz.getQuizId() -> quiz.getId()
                     .category(quiz.getCategory())
                     .selectedAnswer(request.getSelected_answer())
                     .isCorrect(isCorrect)
@@ -364,7 +367,6 @@ public class NewsService {
             userQuizLogRepository.save(quizLog);
         }
 
-        // 🟢 뉴스 퀴즈 채점 피드백용 DTO 조립
         QuizSubmitResponse.PointResultDto pointResult = new QuizSubmitResponse.PointResultDto(
                 earnedPoint,
                 user.getPoint()
@@ -377,7 +379,7 @@ public class NewsService {
         );
 
         return new QuizSubmitResponse(
-                quiz.getQuizId(),
+                quiz.getId(), // quiz.getQuizId() -> quiz.getId()
                 request.getSelected_answer(),
                 isCorrect,
                 quiz.getAnswer(),
@@ -396,14 +398,14 @@ public class NewsService {
 
         List<NewsDetailResponse.RelatedKeywordDto> relatedKeywords = keywordList.stream()
                 .map(k -> new NewsDetailResponse.RelatedKeywordDto(
-                        k.getKeywordId(),
+                        k.getId(), // Keyword PK 변경 반영: .getKeywordId() -> .getId()
                         k.getWord(),
                         k.getKeywordType(),
                         k.getExplanation()
                 )).toList();
 
         return new NewsDetailResponse(
-                news.getNewsId(),
+                news.getId(), // DailyNews PK 변경 반영: .getNewsId() -> .getId()
                 convertToEngCategory(news.getCategory()),
                 news.getTitle(),
                 news.getSummary(),

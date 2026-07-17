@@ -12,7 +12,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class QuizResponse {
-    private Long quiz_id;
+    private Long id;
     private Long news_id;
     private Long keyword_id; // 뉴스 퀴즈일 때는 null, 키워드 퀴즈일 때는 id가 담김
     private String quiz_type; // "KEYWORD" 또는 "NEWS"

@@ -12,7 +12,7 @@ import lombok.*;
 public class Keyword {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long keywordId;
+    private Long id;
 
     @Column(nullable = false, length = 50)
     private String word; // 예: "우주선", "금리"

@@ -10,7 +10,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class KeywordDetailResponse {
-    private Long keyword_id;
+    private Long id;
     private String word;
     private String explanation;
     private String example_sentence;
