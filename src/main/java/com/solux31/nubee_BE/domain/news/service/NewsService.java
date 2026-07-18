@@ -38,15 +38,31 @@ public class NewsService {
 
     // REQUIRES_NEW 트랜잭션과의 데드락 방지를 위해 메인 워크플로우 자체 @Transactional은 제거함
     public void executeDailyNewsWorkflow() {
+        // [1. 어제 자 중복 방지] DB를 비우기 전에 어제의 기사 링크와 키워드를 먼저 긁어옴
+        List<DailyNews> yesterdayNewsList = dailyNewsRepository.findAll();
+
+        List<String> yesterdayLinks = yesterdayNewsList.stream()
+                .map(DailyNews::getOriginalUrl)
+                .filter(url -> url != null && !url.isEmpty())
+                .toList();
+
+        List<String> yesterdayKeywords = yesterdayNewsList.stream()
+                .map(DailyNews::getMainKeyword)
+                .filter(kw -> kw != null && !kw.isEmpty())
+                .toList();
+
+        // 백업 완료, 기존 데이터를 깨끗하게 지우기
         cleanOldNewsAndQuizzes();
 
         String[] categories = {"101", "102", "105", "104"};
-        // 오늘 이미 수집 완료된 메인 키워드들을 저장하는 임시 리스트
+
+        // [2. 오늘 자 중복 방지] 오늘 이미 수집 완료된 키워드와 기사 링크를 저장하는 임시 리스트
         List<String> collectedMainKeywords = new ArrayList<>();
+        List<String> collectedLinks = new ArrayList<>();
 
         for (String categoryId : categories) {
             String categoryName = convertCategoryName(categoryId);
-            // 중복이나 필터링으로 패스될 것을 대비해 기사를 조금 더 여유있게 가져옵니다 (예: 2개 -> 4개)
+            // 중복 필터링으로 패스될 것을 대비해 기사를 조금 더 여유있게 가져오기
             List<NaverNewsResponse.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 4);
 
             if (naverNewsList == null || naverNewsList.isEmpty()) {
@@ -55,15 +71,21 @@ public class NewsService {
 
             int savedCount = 0; // 카테고리당 목표 수집 개수 (1개)
             for (NaverNewsResponse.NaverNewsItem naverNews : naverNewsList) {
-                if (savedCount >= 1) break; // 카테고리별로 1개만 성공하면 다음 카테고리로!
+                if (savedCount >= 1) break; // 카테고리별로 1개만 성공하면 다음 카테고리로
+
+                // 필터 A: 어제 혹은 오늘 이미 수집한 기사 링크와 겹치면 패스
+                if (yesterdayLinks.contains(naverNews.getLink()) || collectedLinks.contains(naverNews.getLink())) {
+                    System.out.println("⚠️ 중복 기사 링크 패스 [" + naverNews.getTitle() + "]");
+                    continue;
+                }
 
                 try {
                     String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName);
 
                     if (mainKeyword != null) {
-                        // [핵심] 오늘 이미 뽑힌 키워드(예: 인공지능)가 다른 카테고리에서 또 나왔다면?
-                        if (collectedMainKeywords.contains(mainKeyword)) {
-                            System.out.println("⚠️ 중복 키워드 감지 [" + mainKeyword + "] -> 이 기사는 패스하고 다음 기사를 처리합니다.");
+                        // 필터 B: 어제 풀었거나 오늘 이미 수집 리스트에 추가된 키워드라면 패스
+                        if (yesterdayKeywords.contains(mainKeyword) || collectedMainKeywords.contains(mainKeyword)) {
+                            System.out.println("⚠️ 중복 키워드 감지 [" + mainKeyword + "] -> 패스하고 다음 기사를 처리합니다.");
                             continue;
                         }
 
@@ -75,8 +97,9 @@ public class NewsService {
                         // 레코드 저장이 완벽하게 완료된 후에 수집 리스트와 저장 개수를 갱신하도록 위치 변경
                         saveMasterKeywordsAndQuizzesInTransaction(singleKeywordList, categoryName, newsId);
 
-                        // 예외 없이 트랜잭션이 성공한 경우에만 컬렉션 반영 및 카운트 증가 처리 (실패 시 retry 경로 보존)
+                        // 예외 없이 트랜잭션이 성공한 경우에만 컬렉션 반영 및 카운트 증가 처리
                         collectedMainKeywords.add(mainKeyword);
+                        collectedLinks.add(naverNews.getLink()); // 성공한 기사 링크 바구니에 저장
                         savedCount++;
                     }
                 } catch (Exception e) {
@@ -98,7 +121,6 @@ public class NewsService {
     public void saveMasterKeywordsAndQuizzesInTransaction(List<String> singleKeywordList, String categoryName, Long newsId) {
         List<MainKeywordResult> masterResults = generateMasterKeywordsAndQuizzes(singleKeywordList);
 
-        // Gemini 연동 결과가 없거나 파싱에 실패하여 비어있다면 저장 실패로 간주하고 런타임 예외 발생
         if (masterResults == null || masterResults.isEmpty()) {
             throw new IllegalArgumentException("Gemini 분석 결과가 비어있어 데이터를 적재할 수 없어.");
         }
@@ -131,7 +153,6 @@ public class NewsService {
                 quizRepository.save(keywordQuiz);
             } catch (Exception e) {
                 System.err.println("키워드 마스터 퀴즈 DB 저장 중 오류 발생");
-                // 호출처인 워크플로우 루프에서 감지하여 롤백 및 재시도할 수 있도록 에러를 상위로 전파
                 throw new RuntimeException("마스터 퀴즈 영속화 실패로 인해 저장을 중단해.", e);
             }
         }
@@ -218,28 +239,45 @@ public class NewsService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
+        // 1. 유저가 설정한 선호 키워드/뉴스 개수 가져오기 (기본값 및 범위 안전장치)
         int userPreferredCount = user.getPreferredKeywordCount();
-
         if (userPreferredCount < 3 || userPreferredCount > 6) {
             userPreferredCount = 6;
         }
 
         List<DailyNews> allTodayNews = dailyNewsRepository.findAll();
-
         if (allTodayNews == null || allTodayNews.isEmpty()) {
             return new TodayNewsResponse(0, new ArrayList<>());
         }
 
-        // ⭐ [변경] 유저의 학습 이력을 분석해서 가장 적게 푼 취약 카테고리 1개를 알아냅니다.
+        // 2. 유저의 학습 이력을 분석해서 가장 적게 푼(가장 취약한) 카테고리 1개 알아내기
         List<String> leastSolved = userQuizLogRepository.findLeastSolvedCategories(userId, org.springframework.data.domain.PageRequest.of(0, 1));
-        String targetCategory = leastSolved.isEmpty() ? "경제" : leastSolved.get(0); // 기록이 없는 뉴비는 기본값 '경제'
+        String targetCategory = leastSolved.isEmpty() ? "경제" : leastSolved.get(0);
 
-        // ⭐ [변경] 기존 rearrangeByCategorySequence 대신 취약 카테고리를 맨 앞으로 밀어주는 새 헬퍼 메서드 호출
-        List<DailyNews> balancedList = rearrangeByWeakCategorySequence(allTodayNews, targetCategory);
+        // 3. [핵심 필터링 고도화] 전체 뉴스 중 취약 카테고리 뉴스들을 먼저 최우선으로 수집함
+        List<DailyNews> priorityFilteredList = new ArrayList<>();
 
-        int targetSize = Math.min(userPreferredCount, balancedList.size());
-        List<DailyNews> selectedNews = balancedList.subList(0, targetSize);
+        List<DailyNews> weakCategoryNews = allTodayNews.stream()
+                .filter(news -> targetCategory.equals(news.getCategory()))
+                .toList();
+        priorityFilteredList.addAll(weakCategoryNews);
 
+        // 4. 나머지 카테고리 뉴스를 가져와서 뒤에 붙여주기 (라운드로빈 방식 헬퍼 활용)
+        List<DailyNews> remainBalancedList = rearrangeByWeakCategorySequence(allTodayNews, targetCategory);
+        java.util.Collections.shuffle(remainBalancedList);
+
+        for (DailyNews remainNews : remainBalancedList) {
+            // 이미 위에서 들어간 취약 카테고리 뉴스는 중복 투입 방지
+            if (!priorityFilteredList.contains(remainNews)) {
+                priorityFilteredList.add(remainNews);
+            }
+        }
+
+        // 5. 유저가 설정한 개수(userPreferredCount)만큼만 최종 필터링하여 자르기
+        int targetSize = Math.min(userPreferredCount, priorityFilteredList.size());
+        List<DailyNews> selectedNews = priorityFilteredList.subList(0, targetSize);
+
+        // 6. Response DTO 변환 및 반환
         List<TodayNewsResponse.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
             Keyword realKeyword = keywordRepository.findByWordAndNewsId(news.getMainKeyword(), news.getId())
                     .orElse(null);
@@ -283,7 +321,6 @@ public class NewsService {
         }
     }
 
-    // 예외 발생 시 빈 리스트를 반환하여 삼키지 않고 외부로 전파하도록 변경 (상위 컨트롤러나 핸들러에서 실패 응답을 만들 수 있도록 지원)
     private QuizResponse convertToQuizResponse(Quiz quiz, boolean includeKeywordId) throws Exception {
         List<QuizResponse.OptionDto> parsedOptions = new ArrayList<>();
         List<String> rawOptions = objectMapper.readValue(quiz.getOptionsJson(), new TypeReference<List<String>>() {});
@@ -303,7 +340,6 @@ public class NewsService {
 
     @Transactional
     public QuizSubmitResponse submitAndGradeKeywordQuiz(Long userId, Long keywordId, QuizSubmitRequest request) {
-
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
 
@@ -353,8 +389,6 @@ public class NewsService {
 
     @Transactional
     public QuizSubmitResponse submitAndGradeNewsQuiz(Long userId, Long newsId, QuizSubmitRequest request) {
-
-        // 1. 퀴즈 데이터 조회
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
 
@@ -362,24 +396,18 @@ public class NewsService {
             throw new IllegalArgumentException("해당 퀴즈는 지정된 뉴스 기사에 속하지 않은 퀴즈입니다.");
         }
 
-        // 2. 유저 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
-        // 3. 중복 제출 여부 확인
         boolean alreadySolved = userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id());
-
-        // 4. [정답 검증] 두 값이 래퍼 타입(Long이나 Integer)일 수 있으므로 안전하게 equals 혹은 원시 타입 비교 보장
         boolean isCorrect = (quiz.getAnswer() == request.getSelected_answer());
 
         int earnedPoint = 0;
 
-        // 5. 최초 풀이일 때만 포인트 지급 및 로그 적재 (Submit 기능 유지)
         if (!alreadySolved) {
             earnedPoint = isCorrect ? 1 : 0;
-            user.updatePoint(earnedPoint); // 유저 엔티티의 더티 체킹으로 DB 반영
+            user.updatePoint(earnedPoint);
 
-            // 유저 제출 기록 적재
             UserQuizLog quizLog = UserQuizLog.builder()
                     .userId(userId)
                     .quizId(quiz.getId())
@@ -394,7 +422,6 @@ public class NewsService {
             System.out.println("⚠️ 이미 풀었던 퀴즈 재제출 감지 -> 포인트 지급을 스킵합니다. 유저: " + userId);
         }
 
-        // 6. 응답 DTO 조립 (현재 유저의 최신 누적 포인트인 user.getPoint() 반영)
         QuizSubmitResponse.PointResultDto pointResult = new QuizSubmitResponse.PointResultDto(
                 earnedPoint,
                 user.getPoint()
@@ -419,16 +446,13 @@ public class NewsService {
 
     @Transactional(readOnly = true)
     public QuizResponse getKeywordQuizByKeywordId(Long keywordId) {
-        // 1. 퀴즈 저장소에서 키워드 ID와 퀴즈 타입이 'KEYWORD'인 데이터를 조회합니다.
         Quiz quiz = quizRepository.findByKeyword_IdAndQuizType(keywordId, "KEYWORD")
                 .orElseThrow(() -> new IllegalArgumentException("해당 키워드 퀴즈가 존재하지 않습니다."));
 
         try {
-            // 2. 이미 서비스 내부 하단에 구현되어 있는 convertToQuizResponse 헬퍼 메서드를 활용해 DTO로 변환합니다.
-            // 키워드 ID를 응답 패킷에 포함해야 하므로 두 번째 인자를 true로 넘겨줍니다.
             return convertToQuizResponse(quiz, true);
         } catch (Exception e) {
-            throw new RuntimeException("키워드 퀴즈 조회 처리 중 파싱 오류가 발생했습니다.", e);
+            throw new RuntimeException("퀴즈 조회 처리 중 파싱 오류가 발생했습니다.", e);
         }
     }
 
@@ -458,24 +482,17 @@ public class NewsService {
         );
     }
 
-
-     // 유저의 취약 카테고리 뉴스를 1순위로 배치하고, 나머지 카테고리를 순차적으로 섞기
     private List<DailyNews> rearrangeByWeakCategorySequence(List<DailyNews> source, String weakCategory) {
-        // 취약 카테고리만 골라내기
         List<DailyNews> weakList = source.stream().filter(n -> weakCategory.equals(n.getCategory())).toList();
 
-        // 나머지 카테고리들 분리
         List<DailyNews> economy = source.stream().filter(n -> "경제".equals(n.getCategory()) && !weakCategory.equals("경제")).toList();
         List<DailyNews> society = source.stream().filter(n -> "사회".equals(n.getCategory()) && !weakCategory.equals("사회")).toList();
         List<DailyNews> science = source.stream().filter(n -> "과학".equals(n.getCategory()) && !weakCategory.equals("과학")).toList();
         List<DailyNews> world = source.stream().filter(n -> "세계".equals(n.getCategory()) && !weakCategory.equals("세계")).toList();
 
         List<DailyNews> result = new ArrayList<>();
-
-        // 1. 취약 카테고리 뉴스를 리스트의 가장 처음에 최우선적으로 배치합니다.
         result.addAll(weakList);
 
-        // 2. 남은 카테고리 뉴스들을 라운드로빈 방식으로 뒤에 골고루 붙여줍니다.
         int maxSize = Math.max(Math.max(economy.size(), society.size()), Math.max(science.size(), world.size()));
         for (int i = 0; i < maxSize; i++) {
             if (i < economy.size()) result.add(economy.get(i));
