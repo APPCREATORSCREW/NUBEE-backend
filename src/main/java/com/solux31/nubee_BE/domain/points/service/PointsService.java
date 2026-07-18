@@ -87,7 +87,7 @@ public class PointsService {
             return null; // 해당 레벨에 지급할 스킨이 카탈로그에 없으면 무시
         }
 
-        boolean alreadyOwned = userSkinRepository.existByUserIdAndSkinId(user.getId(), skin.getId());
+        boolean alreadyOwned = userSkinRepository.existsByUserIdAndSkinId(user.getId(), skin.getId());
 
         if (alreadyOwned) {
             return null;
