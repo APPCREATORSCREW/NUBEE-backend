@@ -17,8 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -42,9 +40,6 @@ public class PointsService {
         if (amount < 0) {
             throw new PointsException(PointsErrorCode.INVALID_AMOUNT);
         }
-        if (reason == null || reason.isBlank() || reason.length() > 50) {
-            throw new PointsException(PointsErrorCode.INVALID_REASON);
-        }
 
         User user = getUserOrThrow(userId);
 
@@ -59,7 +54,7 @@ public class PointsService {
         user.updatePoint(amount);
 
         boolean leveledUp = false;
-        List<Skin> newSkins = new ArrayList<>();
+        Skin newSkin = null;
 
         //50포인트마다 레벨업
         while (user.getPoint() >= LEVEL_UP_THRESHOLD) {
@@ -70,10 +65,7 @@ public class PointsService {
 
             // 5레벨마다 스킨 지급
             if (newLevel % SKIN_GRANT_LEVEL_UNIT == 0) {
-                Skin granted = grantSkinForLevel(user, newLevel);
-                if (granted != null) {
-                    newSkins.add(granted);
-                }
+                newSkin = grantSkinForLevel(user, newLevel);
             }
         }
 
@@ -82,9 +74,7 @@ public class PointsService {
                 .currentPoint(user.getPoint())
                 .leveledUp(leveledUp)
                 .currentLevel(user.getCurrentLevel())
-                .newSkins(newSkins.stream()
-                        .map(pointsConverter::toNewSkinInfo)
-                        .toList())
+                .newSkin(pointsConverter.toNewSkinInfo(newSkin))
                 .build();
     }
 
