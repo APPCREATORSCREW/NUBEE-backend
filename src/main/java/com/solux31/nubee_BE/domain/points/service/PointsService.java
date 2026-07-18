@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -57,7 +59,7 @@ public class PointsService {
         user.updatePoint(amount);
 
         boolean leveledUp = false;
-        Skin newSkin = null;
+        List<Skin> newSkins = new ArrayList<>();
 
         //50포인트마다 레벨업
         while (user.getPoint() >= LEVEL_UP_THRESHOLD) {
@@ -68,7 +70,10 @@ public class PointsService {
 
             // 5레벨마다 스킨 지급
             if (newLevel % SKIN_GRANT_LEVEL_UNIT == 0) {
-                newSkin = grantSkinForLevel(user, newLevel);
+                Skin granted = grantSkinForLevel(user, newLevel);
+                if (granted != null) {
+                    newSkins.add(granted);
+                }
             }
         }
 
@@ -77,7 +82,9 @@ public class PointsService {
                 .currentPoint(user.getPoint())
                 .leveledUp(leveledUp)
                 .currentLevel(user.getCurrentLevel())
-                .newSkin(pointsConverter.toNewSkinInfo(newSkin))
+                .newSkins(newSkins.stream()
+                        .map(pointsConverter::toNewSkinInfo)
+                        .toList())
                 .build();
     }
 
@@ -90,7 +97,7 @@ public class PointsService {
             return null; // 해당 레벨에 지급할 스킨이 카탈로그에 없으면 무시
         }
 
-        boolean alreadyOwned = userSkinRepository.existByUserIdAndSkinId(user.getId(), skin.getId());
+        boolean alreadyOwned = userSkinRepository.existsByUserIdAndSkinId(user.getId(), skin.getId());
 
         if (alreadyOwned) {
             return null;

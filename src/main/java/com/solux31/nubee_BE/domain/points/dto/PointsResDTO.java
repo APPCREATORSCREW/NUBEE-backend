@@ -3,6 +3,8 @@ package com.solux31.nubee_BE.domain.points.dto;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.List;
+
 public class PointsResDTO {
 
     @Getter
@@ -19,7 +21,7 @@ public class PointsResDTO {
         private int currentPoint;
         private boolean leveledUp;
         private int currentLevel;
-        private NewSkinInfo newSkin;
+        private List<NewSkinInfo> newSkins;
     }
 
     @Getter
