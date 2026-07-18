@@ -89,7 +89,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(List.of(
-                "http://localhost:3000"  // 프론트 개발 서버
+                "http://localhost:8081"  // 프론트 개발 서버
                 // 나중에 배포된 프론트 URL도 추가해야 함
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

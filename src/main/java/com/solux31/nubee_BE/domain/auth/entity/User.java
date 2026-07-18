@@ -1,6 +1,7 @@
 package com.solux31.nubee_BE.domain.auth.entity;
 
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
+import com.solux31.nubee_BE.domain.profile.entity.UserSkin;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
@@ -60,12 +61,16 @@ public class User {
     @Column(name = "status", nullable = false)
     private UserStatus status = UserStatus.ACTIVE;
 
-    @Builder.Default
-    @Column(name = "current_skin", nullable = false)
-    private String currentSkin = "DEFAULT";
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_skin_id")
+    private UserSkin currentSkin;
 
     @Column(name = "parent_email")
     private String parentEmail;
+
+    @Builder.Default
+    @Column(name = "notification_enabled", nullable = false)
+    private boolean notificationEnabled = false;
 
     @Builder.Default
     @Column(name = "is_parent_verified", nullable = false)
@@ -102,7 +107,7 @@ public class User {
     }
 
     // 스킨 업데이트
-    public void updateSkin(String skin) {
+    public void updateCurrentSkin(UserSkin skin) {
         this.currentSkin = skin;
     }
 
@@ -119,5 +124,14 @@ public class User {
     // 같은 이메일로 가입된 계정이 있으면 kakaoId 연결
     public void updateKakaoId(String kakaoId) {
         this.kakaoId = kakaoId;
+    }
+
+    public void updateNotificationSettings(boolean enabled, LocalTime time) {
+        this.notificationEnabled = enabled;
+        this.notificationTime = time;
+    }
+
+    public void updateBirthDate(LocalDate birthDate) {
+        this.birthDate = birthDate;
     }
 }

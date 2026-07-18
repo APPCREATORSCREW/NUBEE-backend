@@ -6,6 +6,10 @@ import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
 import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
+import com.solux31.nubee_BE.domain.profile.entity.Skin;
+import com.solux31.nubee_BE.domain.profile.entity.UserSkin;
+import com.solux31.nubee_BE.domain.profile.repository.SkinRepository;
+import com.solux31.nubee_BE.domain.profile.repository.UserSkinRepository;
 import com.solux31.nubee_BE.global.security.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,6 +25,8 @@ public class KakaoUserService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
     private final AuthService authService;
+    private final SkinRepository skinRepository;
+    private final UserSkinRepository userSkinRepository;
 
     @Transactional
     public KakaoLoginResDTO processKakaoLogin(String kakaoId, String nickname, String email) {
@@ -59,11 +65,24 @@ public class KakaoUserService {
                 .username(nickname)
                 .email(email != null ? email : "kakao_" + kakaoId + "@nubee.com")
                 .preferredKeywordCount(3)
-                .currentSkin("DEFAULT")
                 .status(UserStatus.ACTIVE)
                 .isParentVerified(false)
                 .build();
-        return userRepository.save(user);
+
+        userRepository.save(user);
+
+        // 기본 스킨 조회
+        Skin defaultSkin = skinRepository.findBySkinCode("DEFAULT")
+                .orElseThrow(() -> new IllegalArgumentException("기본 스킨이 존재하지 않습니다."));
+
+        // user_skin에 기본 스킨 지급
+        UserSkin userSkin = new UserSkin(user, defaultSkin, LocalDateTime.now());
+        userSkinRepository.save(userSkin);
+
+        // current_skin 설정
+        user.updateCurrentSkin(userSkin);
+
+        return user;
     }
 
     // RefreshToken 저장
