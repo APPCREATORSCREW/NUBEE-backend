@@ -40,6 +40,9 @@ public class PointsService {
         if (amount < 0) {
             throw new PointsException(PointsErrorCode.INVALID_AMOUNT);
         }
+        if (reason == null || reason.isBlank() || reason.length() > 50) {
+            throw new PointsException(PointsErrorCode.INVALID_REASON);
+        }
 
         User user = getUserOrThrow(userId);
 
