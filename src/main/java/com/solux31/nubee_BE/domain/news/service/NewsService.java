@@ -230,7 +230,12 @@ public class NewsService {
             return new TodayNewsResponse(0, new ArrayList<>());
         }
 
-        List<DailyNews> balancedList = rearrangeByCategorySequence(allTodayNews);
+        // ⭐ [변경] 유저의 학습 이력을 분석해서 가장 적게 푼 취약 카테고리 1개를 알아냅니다.
+        List<String> leastSolved = userQuizLogRepository.findLeastSolvedCategories(userId, org.springframework.data.domain.PageRequest.of(0, 1));
+        String targetCategory = leastSolved.isEmpty() ? "경제" : leastSolved.get(0); // 기록이 없는 뉴비는 기본값 '경제'
+
+        // ⭐ [변경] 기존 rearrangeByCategorySequence 대신 취약 카테고리를 맨 앞으로 밀어주는 새 헬퍼 메서드 호출
+        List<DailyNews> balancedList = rearrangeByWeakCategorySequence(allTodayNews, targetCategory);
 
         int targetSize = Math.min(userPreferredCount, balancedList.size());
         List<DailyNews> selectedNews = balancedList.subList(0, targetSize);
@@ -265,17 +270,6 @@ public class NewsService {
         }).toList();
 
         return new TodayNewsResponse(newsDtoList.size(), newsDtoList);
-    }
-
-    @Transactional(readOnly = true)
-    public QuizResponse getKeywordQuizByKeywordId(Long keywordId) {
-        Quiz quiz = quizRepository.findByKeyword_IdAndQuizType(keywordId, "KEYWORD")
-                .orElseThrow(() -> new IllegalArgumentException("해당 키워드에 연결된 퀴즈 존재하지 않음"));
-        try {
-            return convertToQuizResponse(quiz, true);
-        } catch (Exception e) {
-            throw new RuntimeException("퀴즈 조회 처리 중 파싱 오류 발생", e);
-        }
     }
 
     @Transactional(readOnly = true)
@@ -449,15 +443,25 @@ public class NewsService {
         );
     }
 
-    private List<DailyNews> rearrangeByCategorySequence(List<DailyNews> source) {
-        List<DailyNews> economy = source.stream().filter(n -> "경제".equals(n.getCategory())).toList();
-        List<DailyNews> society = source.stream().filter(n -> "사회".equals(n.getCategory())).toList();
-        List<DailyNews> science = source.stream().filter(n -> "과학".equals(n.getCategory())).toList();
-        List<DailyNews> world = source.stream().filter(n -> "세계".equals(n.getCategory())).toList();
+
+     // 유저의 취약 카테고리 뉴스를 1순위로 배치하고, 나머지 카테고리를 순차적으로 섞기
+    private List<DailyNews> rearrangeByWeakCategorySequence(List<DailyNews> source, String weakCategory) {
+        // 취약 카테고리만 골라내기
+        List<DailyNews> weakList = source.stream().filter(n -> weakCategory.equals(n.getCategory())).toList();
+
+        // 나머지 카테고리들 분리
+        List<DailyNews> economy = source.stream().filter(n -> "경제".equals(n.getCategory()) && !weakCategory.equals("경제")).toList();
+        List<DailyNews> society = source.stream().filter(n -> "사회".equals(n.getCategory()) && !weakCategory.equals("사회")).toList();
+        List<DailyNews> science = source.stream().filter(n -> "과학".equals(n.getCategory()) && !weakCategory.equals("과학")).toList();
+        List<DailyNews> world = source.stream().filter(n -> "세계".equals(n.getCategory()) && !weakCategory.equals("세계")).toList();
 
         List<DailyNews> result = new ArrayList<>();
-        int maxSize = Math.max(Math.max(economy.size(), society.size()), Math.max(science.size(), world.size()));
 
+        // 1. 취약 카테고리 뉴스를 리스트의 가장 처음에 최우선적으로 배치합니다.
+        result.addAll(weakList);
+
+        // 2. 남은 카테고리 뉴스들을 라운드로빈 방식으로 뒤에 골고루 붙여줍니다.
+        int maxSize = Math.max(Math.max(economy.size(), society.size()), Math.max(science.size(), world.size()));
         for (int i = 0; i < maxSize; i++) {
             if (i < economy.size()) result.add(economy.get(i));
             if (i < society.size()) result.add(society.get(i));

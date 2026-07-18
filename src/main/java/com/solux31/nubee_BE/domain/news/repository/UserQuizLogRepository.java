@@ -1,10 +1,13 @@
 package com.solux31.nubee_BE.domain.news.repository;
 
 import com.solux31.nubee_BE.domain.news.entity.UserQuizLog;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface UserQuizLogRepository extends JpaRepository<UserQuizLog, Long> {
@@ -15,4 +18,16 @@ public interface UserQuizLogRepository extends JpaRepository<UserQuizLog, Long> 
     // 카테고리가 아닌 특정 뉴스 ID(dailyNews.id) 기준으로 동일 뉴스 내 타 퀴즈 중복 완료 상태 검증
     boolean existsByUserIdAndIdAndQuizIdNot(Long userId, Long id, Long quizId);
 
+    /**
+     * [추가] 유저가 가장 '적게 풀 수록' 학습이 부족하다고 판단 -> 풀이 로그 개수가 적은 순으로 카테고리 이름을 정렬해 반환
+     *
+     * @param userId 분석할 유저 ID
+     * @param pageable 가져올 결과 개수를 제한하기 위한 페이징 객체 (ex: PageRequest.of(0, 1))
+     * @return 적게 푼 순서대로 정렬된 카테고리 이름 리스트
+     */
+    @Query("SELECT uql.category FROM UserQuizLog uql " +
+            "WHERE uql.userId = :userId " +
+            "GROUP BY uql.category " +
+            "ORDER BY COUNT(uql.id) ASC")
+    List<String> findLeastSolvedCategories(@Param("userId") Long userId, Pageable pageable);
 }
