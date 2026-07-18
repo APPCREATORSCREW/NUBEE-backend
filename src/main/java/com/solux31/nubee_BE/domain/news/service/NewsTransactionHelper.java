@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
-import java.util.Arrays;
 import java.util.List;
 
 @Component
@@ -30,9 +29,6 @@ public class NewsTransactionHelper {
     private final QuizRepository quizRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    // SSRF 방어를 위한 허용 도메인 리스트
-    private static final List<String> ALLOWED_DOMAINS = Arrays.asList("news.naver.com", "entertain.naver.com", "sports.news.naver.com");
-
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String processSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String categoryName) throws Exception {
         String articleBody = "";
@@ -41,11 +37,12 @@ public class NewsTransactionHelper {
         try {
             System.out.println("기사 링크로 크롤링 시도 중... URL: " + naverNews.getLink());
 
-            // ⑥ SSRF 방어: 요청 전 URL 및 대상 IP 사전 검증 실행
+            // ⑥ SSRF 방어: 요청 전 URL 및 대상 IP 사전 검증 실행 (네이버 제휴 전체 언론사 허용)
             String targetUrl = validateAndGetSafeUrl(naverNews.getLink());
 
             var document = Jsoup.connect(targetUrl)
                     .timeout(5000)
+                    .followRedirects(false) // 코드래빗 피드백: Jsoup이 임의로 리다이렉트를 다시 추적하지 않도록 차단
                     .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
                     .get();
 
@@ -124,7 +121,7 @@ public class NewsTransactionHelper {
     }
 
     /**
-     * SSRF 공격을 방어하기 위해 URL 형식, 프로토콜, 도메인, IP 주소 대역을 일괄 검증함
+     * SSRF 공격을 방어하기 위해 URL 형식, 프로토콜, IP 주소 대역을 일괄 검증함
      * 리다이렉트 발생 시 최종 목적지까지 추적하여 동일하게 검증함
      */
     private String validateAndGetSafeUrl(String urlString) throws Exception {
@@ -137,13 +134,14 @@ public class NewsTransactionHelper {
                 throw new IllegalArgumentException("허용되지 않은 프로토콜임 (https만 허용).");
             }
 
-            // 2. 허용된 도메인 체크
+            // 2. 호스트 추출 (모든 언론사 크롤링을 위해 특정 도메인 화이트리스트 검증은 제거)
             String host = url.getHost();
-            if (host == null || !ALLOWED_DOMAINS.contains(host.toLowerCase())) {
-                throw new IllegalArgumentException("허용되지 않은 호스트 도메인임.");
+            if (host == null || host.trim().isEmpty()) {
+                throw new IllegalArgumentException("올바르지 않은 호스트 주소임.");
             }
 
             // 3. DNS Lookup을 통한 내부/사설 IP 대역 차단 (사설, 루프백, 링크 로컬 주소 방어)
+            // 외부 도메인을 위장한 악의적인 내부망 침투 시도를 여기서 완벽 차단합니다.
             InetAddress inetAddress = InetAddress.getByName(host);
             if (inetAddress.isLoopbackAddress() || inetAddress.isSiteLocalAddress() || inetAddress.isLinkLocalAddress()) {
                 throw new IllegalArgumentException("제한된 내부 네트워크 주소로의 요청은 불가함.");
