@@ -20,15 +20,28 @@ public class StreakService {
 
     @Transactional
     public void updateStreak(User user) {
-        int lastestStreak = userStreakRepository.findTopByUserIdOrderByAchievedDateDesc(user.getId())
-                .map(UserStreak::getCurrentStreak)
-                .orElse(0);
+        LocalDate today = LocalDate.now();
 
-        int newStreak = lastestStreak + 1;
+        UserStreak latest = userStreakRepository.findTopByUserIdOrderByAchievedDateDesc(user.getId())
+                .orElse(null);
+
+        if (latest != null && latest.getAchievedDate().equals(today)) {
+            // 오늘 이미 기록 있음 → 중복 호출, 아무것도 안 함
+            return;
+        }
+
+        int newStreak;
+        if (latest != null && latest.getAchievedDate().equals(today.minusDays(1))) {
+            // 어제 기록 있음 → 연속 유지, +1
+            newStreak = latest.getCurrentStreak() + 1;
+        } else {
+            // 어제 기록 없음(며칠 건너뜀 또는 최초) → 스트릭 리셋
+            newStreak = 1;
+        }
 
         userStreakRepository.save(UserStreak.builder()
                 .user(user)
-                .achievedDate(LocalDate.now())
+                .achievedDate(today)
                 .currentStreak(newStreak)
                 .build());
 
