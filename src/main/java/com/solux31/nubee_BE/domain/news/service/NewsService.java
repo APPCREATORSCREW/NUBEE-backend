@@ -418,6 +418,21 @@ public class NewsService {
     }
 
     @Transactional(readOnly = true)
+    public QuizResponse getKeywordQuizByKeywordId(Long keywordId) {
+        // 1. 퀴즈 저장소에서 키워드 ID와 퀴즈 타입이 'KEYWORD'인 데이터를 조회합니다.
+        Quiz quiz = quizRepository.findByKeyword_IdAndQuizType(keywordId, "KEYWORD")
+                .orElseThrow(() -> new IllegalArgumentException("해당 키워드 퀴즈가 존재하지 않습니다."));
+
+        try {
+            // 2. 이미 서비스 내부 하단에 구현되어 있는 convertToQuizResponse 헬퍼 메서드를 활용해 DTO로 변환합니다.
+            // 키워드 ID를 응답 패킷에 포함해야 하므로 두 번째 인자를 true로 넘겨줍니다.
+            return convertToQuizResponse(quiz, true);
+        } catch (Exception e) {
+            throw new RuntimeException("키워드 퀴즈 조회 처리 중 파싱 오류가 발생했습니다.", e);
+        }
+    }
+
+    @Transactional(readOnly = true)
     public NewsDetailResponse getNewsDetailWithKeywords(Long newsId) {
         DailyNews news = dailyNewsRepository.findById(newsId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 뉴스 기사 ID"));
