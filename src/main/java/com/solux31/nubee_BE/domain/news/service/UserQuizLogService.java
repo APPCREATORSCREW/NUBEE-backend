@@ -54,12 +54,12 @@ public class UserQuizLogService {
         if (newsId != null) {
             if ("NEWS".equals(quiz.getQuizType())) {
                 // 지금 푸는 게 뉴스 퀴즈라면, 같은 뉴스ID를 공유하는 단어 퀴즈(KEYWORD)를 풀었는지 DB에서 확인
-                boolean isKeywordQuizSolved = userQuizLogRepository.existsByUserIdAndDailyNewsIdAndQuizIdNot(userId, newsId, quiz.getId());
+                boolean isKeywordQuizSolved = userQuizLogRepository.existsByUserIdAndIdAndQuizIdNot(userId, newsId, quiz.getId());
                 isAllCompleted = isKeywordQuizSolved; // 단어 퀴즈까지 이미 풀려있었다면 완료
 
             } else if ("KEYWORD".equals(quiz.getQuizType())) {
                 // 지금 푸는 게 단어 퀴즈라면, 짝꿍인 뉴스 퀴즈(NEWS)가 이미 풀려있는지 확인
-                boolean isNewsQuizSolved = userQuizLogRepository.existsByUserIdAndDailyNewsIdAndQuizIdNot(userId, newsId, quiz.getId());
+                boolean isNewsQuizSolved = userQuizLogRepository.existsByUserIdAndIdAndQuizIdNot(userId, newsId, quiz.getId());
                 isAllCompleted = isNewsQuizSolved; // 뉴스 퀴즈까지 이미 풀려있었다면 완료
             }
         }

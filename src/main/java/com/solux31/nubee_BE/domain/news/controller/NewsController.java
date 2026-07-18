@@ -49,7 +49,7 @@ public class NewsController {
 
     /**
      * [배치 구동 API] 데일리 뉴스 강제 가동
-     * POST /api/v1/news/daily-workflow
+     * GET /api/v1/news/daily-workflow
      */
     @Operation(summary = "오늘의 데일리 뉴스 데이터 강제 생성 (배치 수집)",
             description = "네이버 오픈 API를 통해 당일 뉴스를 수집하고, Gemini 연동을 통해 키워드와 퀴즈 데이터를 한 번에 적재합니다.")
@@ -107,7 +107,7 @@ public class NewsController {
         }
 
         try {
-            // 주입받은 경로의 newsId를 서비스 메서드로 전달하여 내부에서 quiz_id 소유권 및 정합성 검증이 명확히 처리되도록
+            // 다른 메서드들과 동일하게 newsId와 request를 보내 서비스 로직을 실행합니다.
             QuizSubmitResponse responseData = newsService.submitAndGradeNewsQuiz(newsId, request);
 
             Map<String, Object> result = new LinkedHashMap<>();
@@ -117,7 +117,7 @@ public class NewsController {
 
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
-            if (e.getMessage().contains("존재하지 않는") || e.getMessage().contains("속하지 않은") || e.getMessage().contains("올바르지 않은")) {
+            if (e.getMessage().contains("존재하지 않는") || e.getMessage().contains("속하지 않은")) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
             }
             return ResponseEntity.badRequest().body(e.getMessage());

@@ -13,6 +13,6 @@ public interface UserQuizLogRepository extends JpaRepository<UserQuizLog, Long> 
     boolean existsByUserIdAndQuizId(Long userId, Long quizId);
 
     // 카테고리가 아닌 특정 뉴스 ID(dailyNews.id) 기준으로 동일 뉴스 내 타 퀴즈 중복 완료 상태 검증
-    boolean existsByUserIdAndDailyNewsIdAndQuizIdNot(Long userId, Long newsId, Long quizId);
+    boolean existsByUserIdAndIdAndQuizIdNot(Long userId, Long id, Long quizId);
 
 }

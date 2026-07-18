@@ -41,7 +41,7 @@ public class NewsService {
         cleanOldNewsAndQuizzes();
 
         String[] categories = {"101", "102", "105", "104"};
-        // 🟢 오늘 이미 수집 완료된 메인 키워드들을 저장하는 임시 리스트
+        // 오늘 이미 수집 완료된 메인 키워드들을 저장하는 임시 리스트
         List<String> collectedMainKeywords = new ArrayList<>();
 
         for (String categoryId : categories) {
@@ -101,7 +101,8 @@ public class NewsService {
             Long savedKeywordId = wordService.updateKeywordExplanations(
                     master.getKeyword(),
                     master.getExplanation(),
-                    master.getExampleSentence()
+                    master.getExampleSentence(),
+                    newsId
             );
 
             try {
