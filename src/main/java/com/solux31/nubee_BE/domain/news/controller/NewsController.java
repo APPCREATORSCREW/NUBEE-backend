@@ -20,9 +20,6 @@ public class NewsController {
 
     private final NewsService newsService;
 
-    // 💡 [이동 완료]: 1번 오늘의 뉴스 목록 조회(getTodayNews) 메서드는 WordsController 쪽의
-    //                 GET /api/v1/keywords 위치로 완벽하게 이사하여 이 클래스에서 제외되었습니다.
-
     /**
      * [명세서 반영] 2번 오늘의 뉴스 상세 정보 조회
      * GET /api/v1/news/{news_id}
@@ -56,7 +53,7 @@ public class NewsController {
      */
     @Operation(summary = "오늘의 데일리 뉴스 데이터 강제 생성 (배치 수집)",
             description = "네이버 오픈 API를 통해 당일 뉴스를 수집하고, Gemini 연동을 통해 키워드와 퀴즈 데이터를 한 번에 적재합니다.")
-    @GetMapping("/daily-workflow")
+    @PostMapping("/daily-workflow")
     public ResponseEntity<?> runDailyNewsWorkflow() {
         try {
             newsService.executeDailyNewsWorkflow();
@@ -110,8 +107,8 @@ public class NewsController {
         }
 
         try {
-            Long temporaryUserId = 1L; // 테스트용 임시 세팅
-            QuizSubmitResponse responseData = newsService.submitAndGradeNewsQuiz(temporaryUserId, request);
+            // 다른 메서드들과 동일하게 newsId와 request를 보내 서비스 로직을 실행합니다.
+            QuizSubmitResponse responseData = newsService.submitAndGradeNewsQuiz(newsId, request);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "SUCCESS");
@@ -120,7 +117,7 @@ public class NewsController {
 
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
-            if (e.getMessage().contains("존재하지 않는")) {
+            if (e.getMessage().contains("존재하지 않는") || e.getMessage().contains("속하지 않은")) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
             }
             return ResponseEntity.badRequest().body(e.getMessage());
