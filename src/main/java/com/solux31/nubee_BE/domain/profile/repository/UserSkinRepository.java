@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface UserSkinRepository extends JpaRepository<UserSkin, Long> {
+    boolean existsByUserIdAndSkinId(Long userId, Long skinId);
+
     @Query("SELECT us FROM UserSkin us JOIN FETCH us.skin WHERE us.user.id = :userId")
     List<UserSkin> findAllByUserId(@Param("userId") Long userId);
 }
