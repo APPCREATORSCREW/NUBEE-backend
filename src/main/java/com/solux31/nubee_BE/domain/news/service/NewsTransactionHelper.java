@@ -14,6 +14,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.URL;
+import java.util.Arrays;
 import java.util.List;
 
 @Component
@@ -26,6 +30,9 @@ public class NewsTransactionHelper {
     private final QuizRepository quizRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    // SSRF 방어를 위한 허용 도메인 리스트
+    private static final List<String> ALLOWED_DOMAINS = Arrays.asList("news.naver.com", "entertain.naver.com", "sports.news.naver.com");
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String processSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String categoryName) throws Exception {
         String articleBody = "";
@@ -34,7 +41,10 @@ public class NewsTransactionHelper {
         try {
             System.out.println("기사 링크로 크롤링 시도 중... URL: " + naverNews.getLink());
 
-            var document = Jsoup.connect(naverNews.getLink())
+            // ⑥ SSRF 방어: 요청 전 URL 및 대상 IP 사전 검증 실행
+            String targetUrl = validateAndGetSafeUrl(naverNews.getLink());
+
+            var document = Jsoup.connect(targetUrl)
                     .timeout(5000)
                     .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
                     .get();
@@ -48,11 +58,11 @@ public class NewsTransactionHelper {
             }
 
             if (articleBody == null || articleBody.trim().isEmpty()) {
-                throw new Exception("본문이 비어있습니다.");
+                throw new Exception("본문이 비어있음.");
             }
             System.out.println("기사 크롤링 성공! (본문 글자 수: " + articleBody.length() + "자)");
         } catch (Exception e) {
-            System.out.println("⚠️ 기사 크롤링 실패로 description 대체 실행: " + naverNews.getLink());
+            System.out.println("⚠️ 기사 크롤링 실패로 description 대체 실행: " + naverNews.getLink() + " | 사유: " + e.getMessage());
             articleBody = naverNews.getDescription();
         }
 
@@ -61,12 +71,24 @@ public class NewsTransactionHelper {
         }
 
         if (articleBody == null || articleBody.trim().isEmpty()) {
-            throw new Exception("본문이 비어있습니다.");
+            throw new Exception("본문이 비어있음.");
         }
 
         NewsAnalysisResult result = analyzeSingleNews(naverNews, articleBody, categoryName);
         if (result == null) {
-            throw new RuntimeException("Gemini 분석 결과가 null입니다.");
+            throw new RuntimeException("Gemini 분석 결과가 null임.");
+        }
+
+        // ⑦ AI 생성 뉴스 퀴즈 데이터 정합성 검증 추가
+        if (result.getNewsQuiz() == null || result.getNewsQuiz().getOptions() == null) {
+            throw new RuntimeException("AI 생성 퀴즈 또는 선택지가 존재하지 않음.");
+        }
+        if (result.getNewsQuiz().getOptions().size() != 4) {
+            throw new RuntimeException("AI 생성 퀴즈의 선택지 개수가 4개가 아님.");
+        }
+        int quizAnswer = result.getNewsQuiz().getAnswer();
+        if (quizAnswer < 1 || quizAnswer > 4) {
+            throw new RuntimeException("AI 생성 퀴즈의 정답 범위가 1~4를 벗어남.");
         }
 
         System.out.println("데이터베이스(MySQL) 적재 시작");
@@ -90,7 +112,7 @@ public class NewsTransactionHelper {
                 .quizType("NEWS")
                 .question(result.getNewsQuiz().getQuestion())
                 .optionsJson(optionsJson)
-                .answer(result.getNewsQuiz().getAnswer())
+                .answer(quizAnswer)
                 .explanation(result.getNewsQuiz().getExplanation())
                 .dailyNews(savedNews)
                 .category(categoryName)
@@ -99,6 +121,59 @@ public class NewsTransactionHelper {
         System.out.println("[DB 저장 완료] 뉴스 독해 퀴즈 매핑 완료");
 
         return result.getMainKeyword();
+    }
+
+    /**
+     * SSRF 공격을 방어하기 위해 URL 형식, 프로토콜, 도메인, IP 주소 대역을 일괄 검증함
+     * 리다이렉트 발생 시 최종 목적지까지 추적하여 동일하게 검증함
+     */
+    private String validateAndGetSafeUrl(String urlString) throws Exception {
+        int redirectCount = 0;
+        while (redirectCount < 3) { // 최대 리다이렉트 3회로 제한
+            URL url = new URL(urlString);
+
+            // 1. 스킵 조건 검증 (https 프로토콜만 허용)
+            if (!"https".equalsIgnoreCase(url.getProtocol())) {
+                throw new IllegalArgumentException("허용되지 않은 프로토콜임 (https만 허용).");
+            }
+
+            // 2. 허용된 도메인 체크
+            String host = url.getHost();
+            if (host == null || !ALLOWED_DOMAINS.contains(host.toLowerCase())) {
+                throw new IllegalArgumentException("허용되지 않은 호스트 도메인임.");
+            }
+
+            // 3. DNS Lookup을 통한 내부/사설 IP 대역 차단 (사설, 루프백, 링크 로컬 주소 방어)
+            InetAddress inetAddress = InetAddress.getByName(host);
+            if (inetAddress.isLoopbackAddress() || inetAddress.isSiteLocalAddress() || inetAddress.isLinkLocalAddress()) {
+                throw new IllegalArgumentException("제한된 내부 네트워크 주소로의 요청은 불가함.");
+            }
+
+            // 4. 리다이렉트 여부 확인 및 추적 처리
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setInstanceFollowRedirects(false);
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(3000);
+            conn.setRequestMethod("GET");
+            conn.connect();
+
+            int responseCode = conn.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_MOVED_PERM || responseCode == HttpURLConnection.HTTP_MOVED_TEMP) {
+                String loc = conn.getHeaderField("Location");
+                if (loc == null) {
+                    break;
+                }
+                // 상대 경로일 경우 절대 경로로 결합 처리
+                if (!loc.startsWith("http://") && !loc.startsWith("https://")) {
+                    loc = new URL(url, loc).toString();
+                }
+                urlString = loc;
+                redirectCount++;
+            } else {
+                break;
+            }
+        }
+        return urlString;
     }
 
     private NewsAnalysisResult analyzeSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String articleBody, String categoryName) {
@@ -137,7 +212,7 @@ public class NewsTransactionHelper {
                         "   - newsQuiz.explanation(퀴즈 해설): '~처럼요!' 같은 구어체 말투를 유지하면서, 본문의 핵심 맥락을 짚어주는 친절한 해설을 2문장 이상 작성해줘.\n\n" +
 
                         "[⚠️ 팩트 기반 및 할루시네이션 방지 규칙]\n" +
-                        "- 절대 제공된 [뉴스 본문]과 [대체 텍스트]에 없는 사실을 임의로 지어내거나 추측해서 꾸며내지 마. 예시를 들거나 분량을 채우기 위해 소설을 쓰지 말고 본문의 팩트만 친절하게 풀어써.\n" +
+                        "- 절대 제공된 [뉴스 본문]하고 [대체 텍스트]에 없는 사실을 임의로 지어내거나 추측해서 꾸며내지 마. 예시를 들거나 분량을 채우기 위해 소설을 쓰지 말고 본문의 팩트만 친절하게 풀어써.\n" +
                         "- 답할 때 앞뒤로 설명이나 마크다운 주석(```json ... ```)을 절대 붙이지 말고, 오직 {로 시작해서 }로 끝나는 순수한 JSON 데이터만 반환해.\n\n" +
 
                         "[출력 포맷 가이드 (JSON 구조)]\n" +
@@ -147,15 +222,15 @@ public class NewsTransactionHelper {
                         "  \"subKeywords\": [\n" +
                         "    {\n" +
                         "      \"word\": \"추천 시사어휘1\",\n" +
-                        "      \"explanation\": \"초등 눈높이로 쉽게 풀어쓴 시사어휘1의 2~3문장 뜻 설명이에요.\"\n" +
+                        "      \"explanation\": \"초등 눈높이로 쉽게 풀어쓴 시사어휘1의 2~3문장 뜻 설명이야.\"\n" +
                         "    },\n" +
                         "    {\n" +
                         "      \"word\": \"추천 시사어휘2\",\n" +
-                        "      \"explanation\": \"어린이가 이해하기 좋게 다정하게 설명한 뜻 풀이예요.\"\n" +
+                        "      \"explanation\": \"어린이가 이해하기 좋게 다정하게 설명한 뜻 풀이야.\"\n" +
                         "    },\n" +
                         "    {\n" +
                         "      \"word\": \"추천 시사어휘3\",\n" +
-                        "      \"explanation\": \"단어의 핵심을 짚어주는 짧고 명확한 설명이에요.\"\n" +
+                        "      \"explanation\": \"단어의 핵심을 짚어주는 짧고 명확한 설명이야.\"\n" +
                         "    }\n" +
                         "  ],\n" +
                         "  \"newsQuiz\": {\n" +

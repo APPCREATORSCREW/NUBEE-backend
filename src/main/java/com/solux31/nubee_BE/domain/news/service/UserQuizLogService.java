@@ -28,39 +28,43 @@ public class UserQuizLogService {
 
         // 1. 중복 체크
         if (userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id())) {
-            throw new IllegalStateException("이미 풀이한 퀴즈입니다.");
+            throw new IllegalStateException("이미 풀이한 퀴즈임.");
         }
 
         // 2. 퀴즈 및 유저 조회
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈입니다."));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈임."));
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저임."));
 
         // 3. 채점 진행
         boolean isCorrect = (quiz.getAnswer() == request.getSelected_answer());
 
-        // 4. 포인트 지급 (정답 시 10포인트)
+        // 4. 포인트 지급 (정답 시 1포인트 지급 및 주석 일치화)
         if (isCorrect) {
             user.updatePoint(1);
         }
 
         boolean isAllCompleted = false;
 
-        if ("NEWS".equals(quiz.getQuizType())) {
-            // 지금 푸는 게 뉴스 퀴즈라면, 같은 뉴스ID를 가졌거나 같은 메인 키워드를 공유하는 단어 퀴즈(KEYWORD)를 풀었는지 DB에서 확인
-            boolean isKeywordQuizSolved = userQuizLogRepository.existsByUserIdAndCategoryAndQuizIdNot(userId, quiz.getCategory(), quiz.getId());
-            isAllCompleted = isKeywordQuizSolved; // 단어 퀴즈까지 이미 풀려있었다면 완료!
+        // 퀴즈와 연관된 dailyNews 안전하게 조회 (N+1 방지 혹은 지연로딩 고려)
+        Long newsId = (quiz.getDailyNews() != null) ? quiz.getDailyNews().getId() : null;
 
-        } else if ("KEYWORD".equals(quiz.getQuizType())) {
-            // 지금 푸는 게 단어 퀴즈라면, 짝꿍인 뉴스 퀴즈(NEWS)가 이미 풀려있는지 확인
-            boolean isNewsQuizSolved = userQuizLogRepository.existsByUserIdAndCategoryAndQuizIdNot(userId, quiz.getCategory(), quiz.getId());
-            isAllCompleted = isNewsQuizSolved; // 뉴스 퀴즈까지 이미 풀려있었다면 완료!
+        if (newsId != null) {
+            if ("NEWS".equals(quiz.getQuizType())) {
+                // 지금 푸는 게 뉴스 퀴즈라면, 같은 뉴스ID를 공유하는 단어 퀴즈(KEYWORD)를 풀었는지 DB에서 확인
+                boolean isKeywordQuizSolved = userQuizLogRepository.existsByUserIdAndDailyNewsIdAndQuizIdNot(userId, newsId, quiz.getId());
+                isAllCompleted = isKeywordQuizSolved; // 단어 퀴즈까지 이미 풀려있었다면 완료
+
+            } else if ("KEYWORD".equals(quiz.getQuizType())) {
+                // 지금 푸는 게 단어 퀴즈라면, 짝꿍인 뉴스 퀴즈(NEWS)가 이미 풀려있는지 확인
+                boolean isNewsQuizSolved = userQuizLogRepository.existsByUserIdAndDailyNewsIdAndQuizIdNot(userId, newsId, quiz.getId());
+                isAllCompleted = isNewsQuizSolved; // 뉴스 퀴즈까지 이미 풀려있었다면 완료
+            }
         }
 
         // 5. UserQuizLog 엔티티 빌드 및 저장
-        // 엔티티에 정의한 필드들을 모두 채워줍니다.
         UserQuizLog quizLog = UserQuizLog.builder()
                 .userId(userId)
                 .quizId(quiz.getId())

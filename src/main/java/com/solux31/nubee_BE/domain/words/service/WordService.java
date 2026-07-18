@@ -20,7 +20,7 @@ public class WordService {
     /**
      * [1단계 연동] 메인 키워드와 서브 키워드들을 받아 DB에 중복 없이 저장
      * 엔티티의 nullable = false 제약 조건을 충족하기 위해 newsId를 인자로 받음
-     * * subKeywordNames 대신 객체 리스트(subKeywords)를 받아 단어와 뜻을 함께 저장
+     * subKeywordNames 대신 객체 리스트(subKeywords)를 받아 단어와 뜻을 함께 저장
      */
     @Transactional
     public void saveKeywords(String mainKeywordName, List<NewsAnalysisResult.SubKeyword> subKeywords, Long newsId) {
@@ -38,38 +38,38 @@ public class WordService {
 
     /**
      * [2단계 연동] Gemini가 새로 생성한 마스터 설명(뜻)을 단어 테이블에 업데이트
+     * 변경 사항: 단어 식별의 정확도를 위해 newsId를 인자로 받아 복합 조회로 대상을 제한함
      */
     @Transactional
-    public Long updateKeywordExplanations(String keywordName, String explanation, String exampleSentence) {
-        // 1. keywordRepository를 사용해 단어를 찾음
-        Optional<Keyword> keywordOpt = keywordRepository.findByWord(keywordName);
+    public Long updateKeywordExplanations(String keywordName, String explanation, String exampleSentence, Long newsId) {
+        // 1. keywordRepository를 사용해 (word, newsId) 쌍으로 정확한 단어를 찾음
+        Optional<Keyword> keywordOpt = keywordRepository.findByWordAndNewsId(keywordName, newsId);
 
         if (keywordOpt.isPresent()) {
             Keyword keyword = keywordOpt.get();
 
             // 2. 엔티티 내부에 작성한 업데이트 비즈니스 메서드를 호출
             keyword.updateExplanation(explanation);
-
             keyword.updateExampleSentence(exampleSentence);
 
-            // 3. 퀴즈 저장할 때 쓸 수 있도록, 이 단어의 고유 ID를 반환(return)
+            // 3. 퀴즈 저장할 때 쓸 수 있도록, 이 단어의 고유 ID를 반환
             return keyword.getId();
         }
 
         // 4. 만약 단어를 찾지 못했다면 null을 반환
-        System.err.println("⚠️ [경고] updateKeywordExplanations 도중 단어를 찾지 못했습니다: " + keywordName);
+        System.err.println("⚠️ [경고] updateKeywordExplanations 도중 단어를 찾지 못함: " + keywordName + " (newsId: " + newsId + ")");
         return null;
     }
 
     /**
      * 이미 존재하는 단어인지 검사하고, 없을 때만 새 엔티티를 만들어 저장하는 헬퍼 메서드
-     * * 단어 뜻(explanation)을 인자로 받아 저장 로직에 반영
+     * 변경 사항: 전역 단어 중복이 아닌, 동일 뉴스(newsId) 안에서 동일 단어가 중복되는지 검사함
      */
     private void saveIfAbsent(String wordName, String explanation, String type, Long newsId) {
         if (wordName == null || wordName.trim().isEmpty()) return;
 
-        // 레포지토리 규격에 맞춰 findByWord로 변경
-        Optional<Keyword> existingKeyword = keywordRepository.findByWord(wordName);
+        // 레포지토리 규격 변경에 맞춰 findByWordAndNewsId로 교체
+        Optional<Keyword> existingKeyword = keywordRepository.findByWordAndNewsId(wordName, newsId);
 
         if (existingKeyword.isEmpty()) {
             Keyword newKeyword = Keyword.builder()
@@ -97,7 +97,7 @@ public class WordService {
         } else {
             // MAIN 키워드인데 DB에 예문이 비어있을 때를 위한 안전장치
             if (example == null || example.trim().isEmpty()) {
-                example = "'" + keyword.getWord() + "' 단어가 쓰인 멋진 예문을 준비 중이에요!";
+                example = "'" + keyword.getWord() + "' 단어가 쓰인 멋진 예문을 준비 중이야!";
             }
         }
 

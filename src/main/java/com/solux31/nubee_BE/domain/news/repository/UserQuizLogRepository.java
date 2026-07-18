@@ -9,10 +9,10 @@ import java.util.Optional;
 @Repository
 public interface UserQuizLogRepository extends JpaRepository<UserQuizLog, Long> {
 
-    // 메서드 1: 유저가 특정 퀴즈 ID를 풀었는지 검사 (유지)
+    // 유저가 특정 퀴즈 ID를 풀었는지 검사 (유지)
     boolean existsByUserIdAndQuizId(Long userId, Long quizId);
 
-    // 메서드 2: 카테고리 내 중복 검증용 (유지)
-    boolean existsByUserIdAndCategoryAndQuizIdNot(Long userId, String category, Long quizId);
+    // 카테고리가 아닌 특정 뉴스 ID(dailyNews.id) 기준으로 동일 뉴스 내 타 퀴즈 중복 완료 상태 검증
+    boolean existsByUserIdAndDailyNewsIdAndQuizIdNot(Long userId, Long newsId, Long quizId);
 
 }
