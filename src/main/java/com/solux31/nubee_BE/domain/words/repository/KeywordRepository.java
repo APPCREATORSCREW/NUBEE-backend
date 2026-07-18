@@ -1,6 +1,7 @@
 package com.solux31.nubee_BE.domain.words.repository;
 
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
+import com.solux31.nubee_BE.domain.words.entity.mapping.UserKeyword;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
