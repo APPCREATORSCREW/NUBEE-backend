@@ -36,5 +36,4 @@ public class UserSkin {
         this.skin = skin;
         this.acquiredAt = acquiredAt;
     }
-
 }
