@@ -35,7 +35,10 @@ public class NewsTestController {
         return totalNewsList;
     }
 
-    @Operation(summary = "유저별 취약 카테고리 우선 배분 로직 검증", description = "유저 ID를 넣었을 때, 해당 유저가 가장 안 푼 카테고리의 뉴스가 리스트 최상단에 잘 꽂히는지 확인합니다.")
+    @Operation(
+            summary = "유저별 취약 카테고리 우선 배분 로직 검증",
+            description = "유저 ID를 넣었을 때, 해당 유저의 오답률이 가장 높은 카테고리의 뉴스가 리스트 최상단에 잘 꽂히는지 확인합니다."
+    )
     @GetMapping("/balanced-today/{userId}")
     public ResponseEntity<?> testGetBalancedTodayNews(
             @Parameter(description = "테스트할 유저의 고유 ID", example = "1")
