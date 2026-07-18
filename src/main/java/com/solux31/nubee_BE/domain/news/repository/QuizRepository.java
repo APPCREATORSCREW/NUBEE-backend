@@ -13,5 +13,5 @@ public interface QuizRepository extends JpaRepository<Quiz, Long> {
     Optional<Quiz> findByDailyNewsIdAndQuizType(Long newsId, String quizType);
 
     // Quiz 안의 keyword 객체 내부 id를 참조하도록 변경 (keyword_Id 또는 keywordId)
-    Optional<Quiz> findByKeywordIdAndQuizType(Long keywordId, String quizType);
+    Optional<Quiz> findByKeyword_IdAndQuizType(Long keywordId, String quizType);
 }

@@ -64,7 +64,7 @@ public class NewsTransactionHelper {
             throw new Exception("본문이 비어있습니다.");
         }
 
-        NewsAnalysisResult result = analyzeSingleNews(naverNews, articleBody);
+        NewsAnalysisResult result = analyzeSingleNews(naverNews, articleBody, categoryName);
         if (result == null) {
             throw new RuntimeException("Gemini 분석 결과가 null입니다.");
         }
@@ -79,16 +79,13 @@ public class NewsTransactionHelper {
                 .imageUrl(imageUrl)
                 .build();
         DailyNews savedNews = dailyNewsRepository.save(news);
-        // DailyNews PK 변경 반영: savedNews.getNewsId() -> savedNews.getId()
         System.out.println("[DB 저장 완료] DailyNews ID: " + savedNews.getId());
 
-        // Word 도메인 위임 및 DailyNews PK 변경 반영
         wordService.saveKeywords(result.getMainKeyword(), result.getSubKeywords(), savedNews.getId());
         System.out.println("[DB 저장 완료] 메인/서브 키워드 동기화 완료");
 
         String optionsJson = objectMapper.writeValueAsString(result.getNewsQuiz().getOptions());
 
-        // Quiz 엔티티 연관관계 변경 반영: newsId(Long) -> dailyNews(DailyNews) 객체 직접 대입
         Quiz newsQuiz = Quiz.builder()
                 .quizType("NEWS")
                 .question(result.getNewsQuiz().getQuestion())
@@ -104,12 +101,19 @@ public class NewsTransactionHelper {
         return result.getMainKeyword();
     }
 
-    private NewsAnalysisResult analyzeSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String articleBody) {
+    private NewsAnalysisResult analyzeSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String articleBody, String categoryName) {
         String prompt = String.format(
                 "너는 초등학생을 위한 뉴스 교육 서비스의 AI 콘텐츠 생성기이자, 친절한 선생님이야.\n" +
                         "제공되는 [뉴스 링크]에 접속하여 전체 본문을 읽고, 제시된 예시 화면의 말투와 구조를 참고하여 요구사항에 맞춰 반드시 JSON 포맷으로만 답변해줘.\n\n" +
 
                         "[메인 및 서브 키워드 추출 시 엄격한 금지 규칙 - 필독]\n" +
+                        "- 🚨 **지금 분석하는 뉴스의 카테고리는 [%s] 분야야.**\n" +
+                        "- 추출하는 메인 키워드(`mainKeyword`)와 서브 키워드(`subKeywords`)는 **반드시 이 [%s] 분야의 학술적/교양적 핵심 도메인 개념에 완벽하게 부합하는 전문 어휘**로만 선정해줘.\n" +
+                        "- **[매우 중요 - 범용적인 일상 단어 추출 금지]**:\n" +
+                        "  1. 일상생활에서 흔히 쓰이는 일반 명사나 단순 생활 단어(예: 공휴일, 주말, 여행, 날씨, 스마트폰, 밥 등)는 기사 본문에 아무리 많이 언급되더라도 **절대 메인/서브 키워드로 추출하지 마.**\n" +
+                        "  2. 카테고리 고유의 색채가 흐릿하거나 타 분야에 더 알맞은 단어 역시 철저히 배제해줘.\n" +
+                        "  *(잘못된 예시)* [%s] 카테고리 기사인데 '공휴일'(단순 생활), '헌법'(법률/정치), '휴대폰'(제품/과학) 등을 추출하는 것.\n" +
+                        "  *(올바른 예시)* [%s] 카테고리에 완벽히 특화되어 초등 교양 상식에 기여할 수 있는 단어(예: '내수진작', '인플레이션', '기준금리', '수출')를 대신 추출할 것.\n" +
                         "- **사람 이름(예: 대통령 이름, 정치인, 연예인, 범죄자 등 구체적인 인명)은 절대 메인/서브 키워드로 추출하지 마.** 인물이 중심이 되는 단어는 무조건 제외해야 해.\n" +
                         "- 정치적 쟁점, 범죄 사건, 종교적 갈등, 연예계 가십 등 **초등학생에게 교육적으로 부적절하거나 논란이 될 수 있는 민감한 키워드는 철저히 배제해.**\n" +
                         "- 반드시 '개념', '현상', '시사 상식', '교양 원리'에 해당하는 건강하고 교육적인 명사 단어만 키워드로 선정해줘.\n" +
@@ -161,9 +165,12 @@ public class NewsTransactionHelper {
                         "    \"explanation\": \"왜 그것이 정답이고 오답인지 뉴스 맥락을 짚어주는 2문장 이상의 친절한 구어체 해설\"\n" +
                         "  }\n" +
                         "}\n\n" +
-
                         "[뉴스 링크]: %s\n" +
                         "[대체 텍스트]: %s",
+                categoryName,
+                categoryName,
+                categoryName,
+                categoryName,
                 naverNews.getLink(),
                 articleBody
         );

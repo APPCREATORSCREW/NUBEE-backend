@@ -36,7 +36,7 @@ public class NewsApiService {
         HttpEntity<String> entity = new HttpEntity<>(headers);
 
         // 2. 카테고리 코드를 네이버 API 검색어 키워드로 변환 ("101" -> "경제")
-        String queryKeyword = convertCodeToKeyword(categoryCode);
+        String queryKeyword = convertCodeToTargetQuery(categoryCode);
 
         // 3. URL 조립 (정확도순 정렬, 지정된 개수만큼 가져오기)
         URI targetUri = UriComponentsBuilder.fromUriString(apiUrl)
@@ -69,13 +69,13 @@ public class NewsApiService {
      * 내부 헬퍼 메서드: NewsService에서 넘겨준 카테고리 코드를
      * 네이버 뉴스 검색어 API에 던질 알맞은 키워드로 치환
      */
-    private String convertCodeToKeyword(String categoryCode) {
+    private String convertCodeToTargetQuery(String categoryCode) {
         return switch (categoryCode) {
-            case "100" -> "경제";
-            case "101" -> "사회";
-            case "102" -> "과학";
-            case "105" -> "세계";
-            default -> "일반상식";
+            case "101" -> "경제 (금리 OR 물가 OR 수출 OR 환율 OR 세금 OR 예금)";
+            case "102" -> "사회 (학교 OR 교육 OR 환경 OR 교통 OR 안전 OR 기후)";
+            case "105" -> "과학 (기술 OR 우주 OR 바이오 OR 연구 OR 발명 OR 로봇)";
+            case "104" -> "세계 (국제 OR 외교 OR 지구촌 OR 해외 OR 무역)";
+            default -> "시사 상식";
         };
     }
 }
