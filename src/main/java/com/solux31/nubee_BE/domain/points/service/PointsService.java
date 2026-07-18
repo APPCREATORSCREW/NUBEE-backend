@@ -87,16 +87,17 @@ public class PointsService {
             return null; // 해당 레벨에 지급할 스킨이 카탈로그에 없으면 무시
         }
 
-        boolean alreadyOwned = userSkinRepository.findAllByUserId(user.getId()).stream()
-                .anyMatch(us -> us.getSkin().getId().equals(skin.getId()));
+        boolean alreadyOwned = userSkinRepository.existByUserIdAndSkinId(user.getId(), skin.getId());
 
-        if (!alreadyOwned) {
-            userSkinRepository.save(UserSkin.builder()
-                    .user(user)
-                    .skin(skin)
-                    .acquiredAt(LocalDateTime.now())
-                    .build());
+        if (alreadyOwned) {
+            return null;
         }
+
+        userSkinRepository.save(UserSkin.builder()
+                .user(user)
+                .skin(skin)
+                .acquiredAt(LocalDateTime.now())
+                .build());
 
         return skin;
     }
