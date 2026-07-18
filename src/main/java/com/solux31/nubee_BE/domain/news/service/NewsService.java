@@ -67,16 +67,17 @@ public class NewsService {
                             continue;
                         }
 
-                        // 중복이 아니면 수집 목록에 추가
-                        collectedMainKeywords.add(mainKeyword);
-
                         DailyNews currentNews = dailyNewsRepository.findTopByMainKeywordOrderByIdDesc(mainKeyword).orElse(null);
                         Long newsId = (currentNews != null) ? currentNews.getId() : null;
 
                         List<String> singleKeywordList = List.of(mainKeyword);
+
+                        // 레코드 저장이 완벽하게 완료된 후에 수집 리스트와 저장 개수를 갱신하도록 위치 변경
                         saveMasterKeywordsAndQuizzesInTransaction(singleKeywordList, categoryName, newsId);
 
-                        savedCount++; // 성공 카운트 증가
+                        // 예외 없이 트랜잭션이 성공한 경우에만 컬렉션 반영 및 카운트 증가 처리 (실패 시 retry 경로 보존)
+                        collectedMainKeywords.add(mainKeyword);
+                        savedCount++;
                     }
                 } catch (Exception e) {
                     System.err.println("❌ [" + categoryName + "] 파이프라인 패스: " + naverNews.getLink());
@@ -96,6 +97,11 @@ public class NewsService {
     @Transactional
     public void saveMasterKeywordsAndQuizzesInTransaction(List<String> singleKeywordList, String categoryName, Long newsId) {
         List<MainKeywordResult> masterResults = generateMasterKeywordsAndQuizzes(singleKeywordList);
+
+        // Gemini 연동 결과가 없거나 파싱에 실패하여 비어있다면 저장 실패로 간주하고 런타임 예외 발생
+        if (masterResults == null || masterResults.isEmpty()) {
+            throw new IllegalArgumentException("Gemini 분석 결과가 비어있어 데이터를 적재할 수 없어.");
+        }
 
         for (MainKeywordResult master : masterResults) {
             Long savedKeywordId = wordService.updateKeywordExplanations(
@@ -125,7 +131,8 @@ public class NewsService {
                 quizRepository.save(keywordQuiz);
             } catch (Exception e) {
                 System.err.println("키워드 마스터 퀴즈 DB 저장 중 오류 발생");
-                e.printStackTrace();
+                // 호출처인 워크플로우 루프에서 감지하여 롤백 및 재시도할 수 있도록 에러를 상위로 전파
+                throw new RuntimeException("마스터 퀴즈 영속화 실패로 인해 저장을 중단해.", e);
             }
         }
     }
@@ -264,26 +271,30 @@ public class NewsService {
     public QuizResponse getKeywordQuizByKeywordId(Long keywordId) {
         Quiz quiz = quizRepository.findByKeyword_IdAndQuizType(keywordId, "KEYWORD")
                 .orElseThrow(() -> new IllegalArgumentException("해당 키워드에 연결된 퀴즈 존재하지 않음"));
-        return convertToQuizResponse(quiz, true);
+        try {
+            return convertToQuizResponse(quiz, true);
+        } catch (Exception e) {
+            throw new RuntimeException("퀴즈 조회 처리 중 파싱 오류 발생", e);
+        }
     }
 
     @Transactional(readOnly = true)
     public QuizResponse getNewsQuizByNewsId(Long newsId) {
         Quiz quiz = quizRepository.findByDailyNewsIdAndQuizType(newsId, "NEWS")
                 .orElseThrow(() -> new IllegalArgumentException("해당 뉴스 퀴즈 존재하지 않음"));
-        return convertToQuizResponse(quiz, false);
+        try {
+            return convertToQuizResponse(quiz, false);
+        } catch (Exception e) {
+            throw new RuntimeException("퀴즈 조회 처리 중 파싱 오류 발생", e);
+        }
     }
 
-    private QuizResponse convertToQuizResponse(Quiz quiz, boolean includeKeywordId) {
+    // 예외 발생 시 빈 리스트를 반환하여 삼키지 않고 외부로 전파하도록 변경 (상위 컨트롤러나 핸들러에서 실패 응답을 만들 수 있도록 지원)
+    private QuizResponse convertToQuizResponse(Quiz quiz, boolean includeKeywordId) throws Exception {
         List<QuizResponse.OptionDto> parsedOptions = new ArrayList<>();
-        try {
-            List<String> rawOptions = objectMapper.readValue(quiz.getOptionsJson(), new TypeReference<List<String>>() {});
-            for (int i = 0; i < rawOptions.size(); i++) {
-                parsedOptions.add(new QuizResponse.OptionDto(i + 1, rawOptions.get(i)));
-            }
-        } catch (Exception e) {
-            System.err.println("🚨 퀴즈 보기 JSON 파싱 중 오류 발생");
-            e.printStackTrace();
+        List<String> rawOptions = objectMapper.readValue(quiz.getOptionsJson(), new TypeReference<List<String>>() {});
+        for (int i = 0; i < rawOptions.size(); i++) {
+            parsedOptions.add(new QuizResponse.OptionDto(i + 1, rawOptions.get(i)));
         }
 
         return new QuizResponse(
@@ -347,11 +358,15 @@ public class NewsService {
     }
 
     @Transactional
-    public QuizSubmitResponse submitAndGradeNewsQuiz(Long userId, QuizSubmitRequest request) {
+    public QuizSubmitResponse submitAndGradeNewsQuiz(Long userId, Long newsId, QuizSubmitRequest request) {
 
         // 1. 퀴즈 데이터 조회
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
+
+        if (quiz.getDailyNews() == null || !quiz.getDailyNews().getId().equals(newsId)) {
+            throw new IllegalArgumentException("해당 퀴즈는 지정된 뉴스 기사에 속하지 않은 퀴즈입니다.");
+        }
 
         // 2. 유저 조회
         User user = userRepository.findById(userId)

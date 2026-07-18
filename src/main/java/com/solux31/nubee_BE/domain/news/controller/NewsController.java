@@ -14,7 +14,7 @@ import java.util.Map;
 
 @Tag(name = "News API", description = "오늘의 뉴스 리스트, 상세 정보, 뉴스 독해 퀴즈 및 채점 관련 API")
 @RestController
-@RequestMapping("/api/v1/news") // 공통 주소를 /news로 고정
+@RequestMapping("/api/v1/news")
 @RequiredArgsConstructor
 public class NewsController {
 
@@ -100,6 +100,7 @@ public class NewsController {
     @PostMapping("/{news_id}/quiz/submit")
     public ResponseEntity<?> submitNewsQuiz(
             @PathVariable("news_id") Long newsId,
+            /* @AuthenticationPrincipal CustomUserDetails userDetails, */
             @RequestBody QuizSubmitRequest request
     ) {
         if (request.getQuiz_id() == null || request.getSelected_answer() <= 0) {
@@ -107,8 +108,11 @@ public class NewsController {
         }
 
         try {
-            // 다른 메서드들과 동일하게 newsId와 request를 보내 서비스 로직을 실행합니다.
-            QuizSubmitResponse responseData = newsService.submitAndGradeNewsQuiz(newsId, request);
+            // 아직 CustomUserDetails 명세가 없으므로 임시 사용자 식별자 처리 유지
+            Long loginUserId = 1L;
+
+            // 코드래빗 요구사항대로 newsId 대신 인증 기반 역할을 할 loginUserId를 맨 앞에 전달하도록 수정 완료
+            QuizSubmitResponse responseData = newsService.submitAndGradeNewsQuiz(loginUserId, newsId, request);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "SUCCESS");
