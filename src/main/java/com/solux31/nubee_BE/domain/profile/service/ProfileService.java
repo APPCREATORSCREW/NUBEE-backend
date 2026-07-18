@@ -75,15 +75,18 @@ public class ProfileService {
         User user = getUserOrThrow(userId);
 
         user.updatePreferredKeywordCount(request.getPreferredKeywordCount());
-        user.updateNotificationSettings(
-                request.isNotificationEnabled(),
-                LocalTime.parse(request.getNotificationTime())
-        );
+
+        LocalTime time = (request.getNotificationTime() != null && !request.getNotificationTime().isBlank())
+                ? LocalTime.parse(request.getNotificationTime())
+                : null;
+
+        user.updateNotificationSettings(request.isNotificationEnabled(), time);
 
         return ProfileResDTO.Settings.builder()
                 .preferredKeywordCount(user.getPreferredKeywordCount())
                 .notificationEnabled(user.isNotificationEnabled())
-                .notificationTime(user.getNotificationTime().toString())
+                .notificationTime(user.getNotificationTime() != null
+                    ? user.getNotificationTime().toString() : null)
                 .build();
     }
 
