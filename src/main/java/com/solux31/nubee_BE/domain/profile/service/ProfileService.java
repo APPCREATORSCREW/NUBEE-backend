@@ -42,6 +42,9 @@ public class ProfileService {
 
         // user.getCurrentSkin()이 이미 UserSkin 객체이므로, 거기서 Skin을 꺼냄
         UserSkin currentUserSkin = user.getCurrentSkin();
+        if (currentUserSkin == null) {
+            throw new ProfileException(ProfileErrorCode.SKIN_NOT_FOUND);
+        }
         Skin currentSkin = currentUserSkin.getSkin();  // UserSkin 안의 Skin 필드 사용
 
         return ProfileResDTO.Profile.builder()
