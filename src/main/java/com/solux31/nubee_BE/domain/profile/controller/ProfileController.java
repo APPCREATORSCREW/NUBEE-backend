@@ -116,7 +116,7 @@ public class ProfileController {
     @PatchMapping("/profile-image")
     public ResponseEntity<ApiResponse<ProfileResDTO.ProfileImage>> updateProfileImage(
             @AuthenticationPrincipal AuthUser authUser,
-            @RequestBody ProfileReqDTO.ProfileImageUpdate request
+            @Valid @RequestBody ProfileReqDTO.ProfileImageUpdate request
     ) {
         ProfileResDTO.ProfileImage result = profileService.updateProfileImage(authUser.getUserId(), request);
         return ResponseEntity.ok(
