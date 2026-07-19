@@ -1,5 +1,7 @@
 package com.solux31.nubee_BE.domain.auth.controller;
 
+import com.solux31.nubee_BE.domain.auth.dto.Request.BirthDateReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Request.KeywordCountReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.LoginReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.ParentEmailSendReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.ParentEmailVerifyReqDTO;
@@ -9,6 +11,7 @@ import com.solux31.nubee_BE.domain.auth.dto.Request.PasswordResetEmailReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.PasswordResetVerifyReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.SignupReqDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Request.TokenRefreshReqDTO;
+import com.solux31.nubee_BE.domain.auth.dto.Response.BirthDateResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.KakaoLoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.SignupResDTO;
@@ -151,5 +154,23 @@ public class AuthController {
         } catch (Exception e) {
             response.sendRedirect(frontUrl + "/callback?error="+ URLEncoder.encode("카카오 로그인 처리 중 오류가 발생했습니다.", StandardCharsets.UTF_8));
         }
+    }
+
+    // 생년월일 저장
+    @PatchMapping("/birthdate")
+    @Operation(summary = "생년월일 저장", description = "회원가입/카카오 로그인 후 생년월일을 저장합니다.")
+    public ApiResponse<BirthDateResDTO> saveBirthDate(@AuthenticationPrincipal AuthUser authUser,
+                                                      @RequestBody @Valid BirthDateReqDTO request) {
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK,
+                authService.saveBirthDate(authUser.getUsername(), request));
+    }
+
+    // 키워드 개수 설정
+    @PatchMapping("/keyword-count")
+    @Operation(summary = "키워드 개수 설정", description = "튜토리얼 이후 학습 키워드 개수를 설정합니다.")
+    public ApiResponse<String> saveKeywordCount(@AuthenticationPrincipal AuthUser authUser,
+                                                @RequestBody @Valid KeywordCountReqDTO request) {
+        authService.saveKeywordCount(authUser.getUsername(), request);
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK, "키워드 개수가 설정되었습니다.");
     }
 }
