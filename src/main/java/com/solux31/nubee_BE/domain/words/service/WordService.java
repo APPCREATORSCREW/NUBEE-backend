@@ -1,6 +1,8 @@
 package com.solux31.nubee_BE.domain.words.service;
 
 import com.solux31.nubee_BE.domain.news.dto.NewsAnalysisResult;
+import com.solux31.nubee_BE.domain.news.entity.DailyNews;
+import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.words.dto.KeywordDetailResponse;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
@@ -16,6 +18,7 @@ import java.util.Optional;
 public class WordService {
 
     private final KeywordRepository keywordRepository;
+    private final DailyNewsRepository dailyNewsRepository;
 
     /**
      * [1단계 연동] 메인 키워드와 서브 키워드들을 받아 DB에 중복 없이 저장
@@ -43,7 +46,7 @@ public class WordService {
     @Transactional
     public Long updateKeywordExplanations(String keywordName, String explanation, String exampleSentence, Long newsId) {
         // 1. keywordRepository를 사용해 (word, newsId) 쌍으로 정확한 단어를 찾음
-        Optional<Keyword> keywordOpt = keywordRepository.findByWordAndNewsId(keywordName, newsId);
+        Optional<Keyword> keywordOpt = keywordRepository.findByWordAndDailyNewsId(keywordName, newsId);
 
         if (keywordOpt.isPresent()) {
             Keyword keyword = keywordOpt.get();
@@ -68,17 +71,19 @@ public class WordService {
     private void saveIfAbsent(String wordName, String explanation, String type, Long newsId) {
         if (wordName == null || wordName.trim().isEmpty()) return;
 
-        // 레포지토리 규격 변경에 맞춰 findByWordAndNewsId로 교체
-        Optional<Keyword> existingKeyword = keywordRepository.findByWordAndNewsId(wordName, newsId);
+        Optional<Keyword> existingKeyword = keywordRepository.findByWordAndDailyNewsId(wordName, newsId);
 
         if (existingKeyword.isEmpty()) {
+            DailyNews proxyNews = dailyNewsRepository.getReferenceById(newsId);
+
             Keyword newKeyword = Keyword.builder()
                     .word(wordName)
                     .explanation(explanation != null ? explanation : "") // 받아온 뜻 정보를 빌더에 세팅 (null 방어)
                     .keywordType(type)   // "MAIN" 또는 "SUB"
-                    .newsId(newsId)      // 연관된 뉴스 외래키 ID
+                    .dailyNews(proxyNews)    // 연관된 뉴스 외래키 ID
                     .build();
 
+            newKeyword.setDailyNews(proxyNews);
             keywordRepository.save(newKeyword);
         }
     }

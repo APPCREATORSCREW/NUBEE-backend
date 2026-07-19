@@ -47,12 +47,13 @@ public class NewsService {
                 .toList();
 
         List<String> yesterdayKeywords = yesterdayNewsList.stream()
-                .map(DailyNews::getMainKeyword)
-                .filter(kw -> kw != null && !kw.isEmpty())
+                .flatMap(news -> news.getRelatedKeywords().stream()) // 뉴스 내부의 키워드 리스트를 평탄화(스트림 연결)
+                .map(Keyword::getWord)                              // Keyword 객체에서 실제 단어(String) 추출
+                .filter(word -> word != null && !word.isEmpty())
                 .toList();
 
-        // 백업 완료, 기존 데이터를 깨끗하게 지우기
-        cleanOldNewsAndQuizzes();
+        // 기존 데이터를 지우던 cleanOldNewsAndQuizzes()를 주석 처리하여 뉴스 기록 누적
+        // cleanOldNewsAndQuizzes();
 
         String[] categories = {"101", "102", "105", "104"};
 
@@ -89,7 +90,10 @@ public class NewsService {
                             continue;
                         }
 
-                        DailyNews currentNews = dailyNewsRepository.findTopByMainKeywordOrderByIdDesc(mainKeyword).orElse(null);
+                        DailyNews currentNews = keywordRepository.findByWordAndDailyNewsId(mainKeyword, null) // 전체 범위에서 단어 매칭 추적
+                                .map(Keyword::getDailyNews)
+                                .orElse(null);
+
                         Long newsId = (currentNews != null) ? currentNews.getId() : null;
 
                         List<String> singleKeywordList = List.of(mainKeyword);
@@ -279,11 +283,10 @@ public class NewsService {
 
         // 6. Response DTO 변환 및 반환
         List<TodayNewsResponse.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
-            Keyword realKeyword = keywordRepository.findByWordAndNewsId(news.getMainKeyword(), news.getId())
-                    .orElse(null);
+            Keyword realKeyword = news.getRelatedKeywords().isEmpty() ? null : news.getRelatedKeywords().get(0);
 
             Long keywordId = (realKeyword != null) ? realKeyword.getId() : 999L;
-            String wordName = (realKeyword != null) ? realKeyword.getWord() : news.getMainKeyword();
+            String wordName = (realKeyword != null) ? realKeyword.getWord() : "알 수 없음";
             String explanation = (realKeyword != null) ? realKeyword.getExplanation() : "이 단어에 대한 설명이 준비되고 있어요.";
             String exampleSentence = (realKeyword != null && realKeyword.getExampleSentence() != null)
                     ? realKeyword.getExampleSentence()
@@ -328,10 +331,13 @@ public class NewsService {
             parsedOptions.add(new QuizResponse.OptionDto(i + 1, rawOptions.get(i)));
         }
 
+        Long extractedNewsId = (quiz.getDailyNews() != null) ? quiz.getDailyNews().getId() : null;
+        Long extractedKeywordId = (quiz.getKeyword() != null) ? quiz.getKeyword().getId() : null;
+
         return new QuizResponse(
                 quiz.getId(),
-                quiz.getNewsId(),
-                includeKeywordId ? quiz.getKeywordId() : null,
+                extractedNewsId,
+                includeKeywordId ? extractedKeywordId : null,
                 quiz.getQuizType(),
                 quiz.getQuestion(),
                 parsedOptions
@@ -461,7 +467,7 @@ public class NewsService {
         DailyNews news = dailyNewsRepository.findById(newsId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 뉴스 기사 ID"));
 
-        List<Keyword> keywordList = keywordRepository.findByNewsId(newsId);
+        List<Keyword> keywordList = keywordRepository.findByDailyNewsId(newsId);
 
         List<NewsDetailResponse.RelatedKeywordDto> relatedKeywords = keywordList.stream()
                 .map(k -> new NewsDetailResponse.RelatedKeywordDto(
