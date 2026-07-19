@@ -42,32 +42,6 @@ public class NewsController {
     }
 
     /**
-     * [추가 명세 반영] 키워드 퀴즈 채점 및 포인트 지급
-     * POST /api/v1/keywords/{keyword_id}/quiz/submit
-     */
-    @Operation(summary = "키워드 퀴즈 채점 및 포인트 지급",
-            description = "선택한 핵심 키워드 퀴즈의 정답을 채점하고 맞춘 경우 포인트를 지급합니다.")
-    @PostMapping("/keywords/{keyword_id}/quiz/submit")
-    public ResponseEntity<?> submitKeywordQuiz(
-            @AuthenticationPrincipal AuthUser authUser,
-            @PathVariable("keyword_id") Long keywordId,
-            @RequestBody QuizSubmitRequest request
-    ) {
-        if (request.getQuiz_id() == null || request.getSelected_answer() <= 0) {
-            return ResponseEntity.badRequest().body("필수 입력값 누락 (quiz_id, selected_answer)");
-        }
-        try {
-            QuizSubmitResponse responseData = newsService.submitAndGradeKeywordQuiz(authUser.getUserId(), keywordId, request);
-            return ResponseEntity.ok(responseData);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
      * [명세서 반영] 2번 오늘의 뉴스 상세 정보 조회
      * GET /api/v1/news/{news_id}
      */

@@ -31,7 +31,7 @@ public class WordService {
         // 1. 메인 키워드 중복 체크 후 저장 (타입을 "MAIN"으로 명시, 1단계 시점에는 뜻이 없으므로 빈 문자열)
         saveIfAbsent(mainKeywordName, "", "MAIN", newsId);
 
-        // 2. 서브 키워드 리스트 돌면서 중복 체크 후 저장 (타입을 "SUB"으로 명시, 뜻 설명도 함께 저장!)
+        // 2. 서브 키워드 리스트 돌면서 중복 체크 후 저장 (타입을 "SUB"으로 명시, 뜻 설명도 함께 저장)
         if (subKeywords != null) {
             for (NewsAnalysisResult.SubKeyword sub : subKeywords) {
                 saveIfAbsent(sub.getWord(), sub.getExplanation(), "SUB", newsId);
