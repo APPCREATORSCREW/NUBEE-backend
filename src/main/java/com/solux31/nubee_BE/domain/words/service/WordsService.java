@@ -2,6 +2,7 @@ package com.solux31.nubee_BE.domain.words.service;
 
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
+import com.solux31.nubee_BE.domain.news.dto.NewsAnalysisResult;
 import com.solux31.nubee_BE.domain.words.dto.Response.WordsResDTO;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.entity.mapping.UserKeyword;

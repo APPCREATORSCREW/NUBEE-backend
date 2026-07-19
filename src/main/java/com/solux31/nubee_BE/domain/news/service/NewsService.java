@@ -18,8 +18,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,74 +40,119 @@ public class NewsService {
     private final UserQuizLogRepository userQuizLogRepository;
     private final KeywordRepository keywordRepository;
 
-    // REQUIRES_NEW 트랜잭션과의 데드락 방지를 위해 메인 워크플로우 자체 @Transactional은 제거함
-    public void executeDailyNewsWorkflow() {
-        cleanOldNewsAndQuizzes();
+    private static final Long DEFAULT_KEYWORD_ID = 999L;
+    private static final String DEFAULT_WORD_NAME = "알 수 없음";
+    private static final String DEFAULT_EXPLANATION = "이 단어에 대한 설명이 준비되고 있어요.";
+    private static final String DEFAULT_EXAMPLE = "뉴스 본문을 읽으며 단어의 맥락을 파악해 보세요.";
 
+    public void executeDailyNewsWorkflow() {
         String[] categories = {"101", "102", "105", "104"};
-        // 오늘 이미 수집 완료된 메인 키워드들을 저장하는 임시 리스트
-        List<String> collectedMainKeywords = new ArrayList<>();
+
+        List<String> collectedLinks = new ArrayList<>();
 
         for (String categoryId : categories) {
             String categoryName = convertCategoryName(categoryId);
-            // 중복이나 필터링으로 패스될 것을 대비해 기사를 조금 더 여유있게 가져옵니다 (예: 2개 -> 4개)
             List<NaverNewsResponse.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 4);
 
             if (naverNewsList == null || naverNewsList.isEmpty()) {
                 continue;
             }
 
-            int savedCount = 0; // 카테고리당 목표 수집 개수 (1개)
+            int savedCount = 0;
             for (NaverNewsResponse.NaverNewsItem naverNews : naverNewsList) {
-                if (savedCount >= 1) break; // 카테고리별로 1개만 성공하면 다음 카테고리로!
+                if (savedCount >= 1) break;
+
+                // 1. 기사 중복 필터링
+                if (collectedLinks.contains(naverNews.getLink()) || dailyNewsRepository.existsByOriginalUrl(naverNews.getLink())) {
+                    System.out.println("⚠️ 중복 기사 링크 패스 [" + naverNews.getTitle() + "]");
+                    continue;
+                }
 
                 try {
                     String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName);
+                    System.out.println("🔍 추출된 메인 키워드: " + mainKeyword);
 
-                    if (mainKeyword != null) {
-                        // [핵심] 오늘 이미 뽑힌 키워드(예: 인공지능)가 다른 카테고리에서 또 나왔다면?
-                        if (collectedMainKeywords.contains(mainKeyword)) {
-                            System.out.println("⚠️ 중복 키워드 감지 [" + mainKeyword + "] -> 이 기사는 패스하고 다음 기사를 처리합니다.");
-                            continue;
+                    if (mainKeyword != null && !mainKeyword.trim().isEmpty()) {
+
+                        // 2. 방금 생성된 기사 엔티티 역추적 (URL 기준으로 찾아오는 방법이 가장 안전)
+                        DailyNews currentNews = dailyNewsRepository.findByOriginalUrl(naverNews.getLink())
+                                .orElseThrow(() -> new IllegalStateException("방금 저장된 기사를 찾을 수 없습니다."));
+
+                        // 3. 중복 키워드 분기 처리 (이제 더 이상 continue로 흐름을 파괴하지 않음)
+                        if (keywordRepository.existsByWord(mainKeyword)) {
+                            System.out.println("⚠️ 기존 마스터 키워드 발견 [" + mainKeyword + "] -> 현재 기사와 연동 및 퀴즈 추가 프로세스 진행");
+
+                            // 이미 존재하는 키워드라면 뜻 설명 생성(Gemini) 과정을 생략하고 매핑만 진행
+                            Keyword existingKeyword = keywordRepository.findByWord(mainKeyword)
+                                    .orElseThrow(() -> new IllegalStateException("존재한다고 했으나 조회에 실패했습니다."));
+
+                            // 기존 saveQuizForExistingKeyword 대신 Gemini 호출 없는 재사용 메서드 호출
+                            reuseExistQuizForKeyword(existingKeyword, currentNews, categoryName);
+                        } else {
+                            System.out.println("🌱 새로운 마스터 키워드 발견 [" + mainKeyword + "] -> Gemini 통합 연성 시작");
+                            // 처음 발견된 신규 키워드라면 마스터 풀 등록 및 퀴즈 생성
+                            saveMasterKeywordsAndQuizzesInTransaction(mainKeyword, categoryName, currentNews.getId());
                         }
 
-                        DailyNews currentNews = dailyNewsRepository.findTopByMainKeywordOrderByIdDesc(mainKeyword).orElse(null);
-                        Long newsId = (currentNews != null) ? currentNews.getId() : null;
-
-                        List<String> singleKeywordList = List.of(mainKeyword);
-
-                        // 레코드 저장이 완벽하게 완료된 후에 수집 리스트와 저장 개수를 갱신하도록 위치 변경
-                        saveMasterKeywordsAndQuizzesInTransaction(singleKeywordList, categoryName, newsId);
-
-                        // 예외 없이 트랜잭션이 성공한 경우에만 컬렉션 반영 및 카운트 증가 처리 (실패 시 retry 경로 보존)
-                        collectedMainKeywords.add(mainKeyword);
+                        collectedLinks.add(naverNews.getLink());
                         savedCount++;
                     }
                 } catch (Exception e) {
-                    System.err.println("❌ [" + categoryName + "] 파이프라인 패스: " + naverNews.getLink());
+                    System.err.println("❌ [" + categoryName + "] 파이프라인 오류로 인한 패스: " + naverNews.getLink());
+                    e.printStackTrace();
                 }
             }
         }
     }
 
-    // 개별 영속성 유지를 위한 트랜잭션 선언
     @Transactional
     public void cleanOldNewsAndQuizzes() {
         quizRepository.deleteAllInBatch();
         dailyNewsRepository.deleteAllInBatch();
     }
 
-    // 개별 영속성 유지를 위한 트랜잭션 선언
     @Transactional
-    public void saveMasterKeywordsAndQuizzesInTransaction(List<String> singleKeywordList, String categoryName, Long newsId) {
-        List<MainKeywordResult> masterResults = generateMasterKeywordsAndQuizzes(singleKeywordList);
+    public void reuseExistQuizForKeyword(Keyword keyword, DailyNews news, String categoryName) {
+        try {
+            // 해당 키워드로 이미 생성된 KEYWORD 타입의 퀴즈를 조회 (리스트로 받아 첫 번째 항목 안전하게 선택)
+            Quiz existingQuiz = quizRepository.findByKeyword_IdAndQuizType(keyword.getId(), "KEYWORD")
+                    .stream().findFirst()
+                    .orElse(null);
 
-        // Gemini 연동 결과가 없거나 파싱에 실패하여 비어있다면 저장 실패로 간주하고 런타임 예외 발생
+            if (existingQuiz != null) {
+                // 기존 퀴즈 데이터를 그대로 사용하되, 이번에 저장된 새로운 뉴스 기사(news)만 연결하여 영속화
+                Quiz reusedQuiz = Quiz.builder()
+                        .quizType("KEYWORD")
+                        .question(existingQuiz.getQuestion())
+                        .optionsJson(existingQuiz.getOptionsJson())
+                        .answer(existingQuiz.getAnswer())
+                        .explanation(existingQuiz.getExplanation())
+                        .keyword(keyword)
+                        .dailyNews(news)
+                        .category(categoryName)
+                        .build();
+                quizRepository.save(reusedQuiz);
+                System.out.println("✅ [퀴즈 재사용 완료] 키워드: " + keyword.getWord() + " -> 기사 ID: " + news.getId());
+            } else {
+                System.out.println("⚠️ 기존 퀴즈를 찾지 못해 예외적으로 퀴즈를 새로 생성합니다.");
+                saveMasterKeywordsAndQuizzesInTransaction(keyword.getWord(), categoryName, news.getId());
+            }
+        } catch (Exception e) {
+            System.err.println("❌ 기존 퀴즈 재사용 프로세스 중 오류 발생: " + keyword.getWord());
+            e.printStackTrace();
+        }
+    }
+
+    @Transactional
+    public void saveMasterKeywordsAndQuizzesInTransaction(String mainKeyword, String categoryName, Long newsId) {
+        List<MainKeywordResult> masterResults = generateMasterKeywordsAndQuizzes(mainKeyword);
+
         if (masterResults == null || masterResults.isEmpty()) {
             throw new IllegalArgumentException("Gemini 분석 결과가 비어있어 데이터를 적재할 수 없어.");
         }
 
         for (MainKeywordResult master : masterResults) {
+            // 마스터 단어장에 정보 업데이트 후 키워드 ID 반환받기
             Long savedKeywordId = wordService.updateKeywordExplanations(
                     master.getKeyword(),
                     master.getExplanation(),
@@ -131,7 +180,6 @@ public class NewsService {
                 quizRepository.save(keywordQuiz);
             } catch (Exception e) {
                 System.err.println("키워드 마스터 퀴즈 DB 저장 중 오류 발생");
-                // 호출처인 워크플로우 루프에서 감지하여 롤백 및 재시도할 수 있도록 에러를 상위로 전파
                 throw new RuntimeException("마스터 퀴즈 영속화 실패로 인해 저장을 중단해.", e);
             }
         }
@@ -147,55 +195,52 @@ public class NewsService {
         };
     }
 
-    private List<MainKeywordResult> generateMasterKeywordsAndQuizzes(List<String> mainKeywords) {
-        System.out.println("🔑 핵심 키워드 통합 퀴즈 및 뜻 설명 연성 중... -> " + mainKeywords);
+    private List<MainKeywordResult> generateMasterKeywordsAndQuizzes(String keyword) {
+        System.out.println("🔑 핵심 키워드 퀴즈 및 뜻 설명 연성 중... -> [" + keyword + "]");
 
-        if (mainKeywords == null || mainKeywords.isEmpty()) {
+        if (keyword == null || keyword.trim().isEmpty()) {
             return new ArrayList<>();
         }
 
-        String promptTemplate =
-                "너는 초등학생을 위한 어휘 교육 전문가이자, 친절한 캐릭터 '누비(꿀벌)'야.\n" +
-                        "제공된 [키워드 리스트]에 속한 각 단어들에 대해, 초등학교 3~4학년이 완벽히 이해할 수 있도록 **설명 구조와 말투를 규격화하여** 생성해줘.\n\n" +
+        String promptTemplate = "You are an educational vocabulary expert and a friendly character named 'Nubee(honeybee)' for kids.\n" +
+                "For each word provided in the [Keyword List], generate standardized educational content for 3rd-4th grade. You must output strictly in JSON Array format.\n\n" +
 
-                        "요구사항 및 텍스트 구조 제약 (매우 중요):\n" +
-                        "1. keyword: 제공된 리스트에 있는 단어 이름 그대로 출력\n" +
-                        "2. explanation: **[반드시 아래의 4단계 구조와 줄바꿈(\\n), 말투를 유사하게 지켜서 작성해줘]**\n" +
-                        "   - [1단계: 한 줄 정의]: '[단어명]는/은 ~예요/이에요!' 형태로 단어의 핵심을 쉽고 명확하게 한 줄로 정의.\n" +
-                        "   - [2단계: 인과 현상 1]: 이 단어가 가진 개념이나 속성이 '높아지거나/강해지거나/많아지면' 일상이나 경제/사회/과학 분야에 어떤 변화나 현상이 생기는지 초등 눈높이로 설명.\n" +
-                        "   - [3단계: 인과 현상 2]: 이 단어가 가진 개념이나 속성이 '낮아지거나/약해지거나/적어지면' 어떻게 되는지 반대 상황을 설명하거나, 아이들이 추가로 알아야 할 핵심 연관 현상을 설명.\n" +
-                        "   - [4단계: 요약 마감]: '이것만 기억해요!' 문구를 넣은 뒤, 핵심 규칙 3가지를 글머리 기호(•), 화살표(➔), 상태 기호(↑, ↓)를 조합하여 깔끔하게 요약 마무리.\n\n" +
+                "[REQUIREMENTS FOR OUTPUT FIELDS - WRITE ALL VALUES IN KOREAN]\n" +
+                "1. keyword: The exact input word.\n" +
+                "2. explanation: Follow this EXACT 4-step structure and tone with line breaks (\\n):\n" +
+                "   - Step 1 (Definition): Define the core concept clearly in one line: '[단어명]는/은 ~예요/이에요!'\n" +
+                "   - Step 2 (Causal Effect 1): Explain in child-friendly terms what happens to the economy/society/science when this concept increases/strengthens.\n" +
+                "   - Step 3 (Causal Effect 2): Explain the opposite case (when it decreases/weakens) or additional critical linked phenomena.\n" +
+                "   - Step 4 (Summary Wrap-up): Write '이것만 기억해요!' and provide 3 key takeaway rules using bullet points (•), arrows (➔), and signs (↑, ↓).\n" +
+                "3. example_sentence: Provide EXACTLY 1 unique, highly realistic and complete example sentence showing how the word is used in daily life or real news contexts.\n" +
+                "   - Do not reuse the text from the explanation field; make it a creative standalone example.\n" +
+                "4. keywordQuiz: A 4-option multiple-choice quiz testing the usage or causal effect of the word.\n" +
+                "   - 🚨 ABSOLUTELY NO simple dictionary definition questions (e.g., 'What is the definition of this word?').\n" +
+                "   - Question must ask about the causal relationships or phenomena described in Steps 2 or 3 of the explanation.\n" +
+                "   - answer: 🚨 Must be an integer between 1 and 4 (1-based index).\n" +
+                "   - explanation: Provide a gentle, thorough explanation in Korean (at least 2 sentences) on why the options are correct/incorrect.\n\n" +
 
-                        "3. example_sentence: [반드시 필수로 작성] 해당 메인 단어가 일상생활이나 실제 뉴스 상황 속에서 어떻게 구체적으로 쓰이는지 보여주는 초등학생 눈높이의 친절하고 완결된 예시 문장 딱 1개만 생성해줘.\n" +
-                        "   - 🚨 (주의) 다른 필드에 들어가는 중복 설명을 베껴 쓰지 말고, 이 문장 단독으로 읽어도 상황이 완벽히 그려지는 독창적인 일상 대화나 행동 위주의 예문을 창작해내야 해.\n\n" +
+                "[⚠️ NO DUPLICATION & STRICT JSON ARRAY RULE]\n" +
+                "- Create original examples tailored to the specific word's nature.\n" +
+                "- Output ONLY the pure raw JSON array starting with [ and ending with ]. Do not include markdown tags (```json).\n\n" +
 
-                        "4. keywordQuiz: 단어의 쓰임새 and 현상을 묻는 4지선다 객관식 퀴즈\n" +
-                        "   - 🚨 [단순 뜻 풀이 절대 금지]: '이 단어의 뜻은 무엇일까요?' 같은 단순 정의 찾기 문제는 절대 출제하지 마.\n" +
-                        "   - 반드시 위 [explanation]의 2, 3단계에서 다룬 현상이나 인과관계(예: ~가 어떻게 되면 어떤 일이 일어날까요?)를 질문으로 던져줘.\n" +
-                        "   - keywordQuiz.answer (정답): 🚨 **[주의 - 매우 중요]** 정답은 인덱스가 아닌 **실제 선지 번호인 1, 2, 3, 4 중 하나**로만 정확히 지정해줘. (0-based 인덱스 금지!)\n" +
-                        "   - keywordQuiz.explanation(퀴즈 해설): 최소 2문장 이상으로 왜 그 보기들이 오답이고 정답인지 아이 눈높이에서 원리를 조곤조곤 설명해줘.\n\n" +
+                "[OUTPUT FORMAT GUIDE]\n" +
+                "[\n" +
+                "  {\n" +
+                "    \"keyword\": \"입력된 단어 이름\",\n" +
+                "    \"explanation\": \"[1단계 한 줄 정의]\\n\\n[2단계 개념이 높아지거나 강해질 때의 현상]\\n\\n[3단계 개념이 낮아지거나 약해질 때의 현상]\\n\\n이것만 기억해요!\\n• [핵심요약 1] ➔ [현상 1] ↑\\n• [핵심요약 2] ➔ [현상 2] 쉬워짐\\n• [핵심요약 3]\",\n" +
+                "    \"example_sentence\": \"아이들이 일상에서 단어의 뜻과 쓰임새를 단번에 체감할 수 있는 완결된 예시 문장 한 줄\",\n" +
+                "    \"keywordQuiz\": {\n" +
+                "      \"question\": \"단어의 인과관계를 묻는 맥락 질문\",\n" +
+                "      \"options\": [\"선지1\", \"선지2\", \"선지3\", \"선지4\"],\n" +
+                "      \"answer\": 1,\n" +
+                "      \"explanation\": \"정답과 오답의 원리를 친절하게 설명하는 2문장 이상의 해설\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "]\n\n" +
+                "[Keyword List]: [\"%s\"]";
 
-                        "[⚠️ 엄격한 예외 처리 및 탈선 방지 규칙]\n" +
-                        "- 특정 단어(예: 금리)의 예시 문장이나 숫자를 다른 단어에 그대로 베껴 쓰지 마. 입력된 단어의 본질에 맞는 완전히 새로운 독창적인 일상 예시를 창작해내야 해.\n" +
-                        "- 답할 때 앞뒤로 설명이나 마크다운 주석(```json ... ```)을 절대 붙이지 말고, 오직 [로 시작해서 ]로 끝나는 순수한 JSON 배열(Array) 데이터만 반환해.\n\n" +
-
-                        "[출력 포맷 (JSON 배열 구조 가이드)]\n" +
-                        "[\n" +
-                        "  {\n" +
-                        "    \"keyword\": \"입력된 단어 이름\",\n" +
-                        "    \"explanation\": \"[1단계 한 줄 정의]\\n\\n[2단계 개념이 높아지거나 강해질 때의 현상]\\n\\n[3단계 개념이 낮아지거나 약해질 때의 현상]\\n\\n이것만 기억해요!\\n• [핵심요약 1] ➔ [현상 1] ↑\\n• [핵심요약 2] ➔ [현상 2] 쉬워짐\\n• [핵심요약 3]\",\n" +
-                        "    \"example_sentence\": \"아이들이 일상에서 단어의 뜻과 쓰임새를 단번에 체감할 수 있는 완결된 예시 문장 한 줄\",\n" +
-                        "    \"keywordQuiz\": {\n" +
-                        "      \"question\": \"단어의 인과관계를 묻는 맥락 질문\",\n" +
-                        "      \"options\": [\"선지1\", \"선지2\", \"선지3\", \"선지4\"],\n" +
-                        "      \"answer\": 1,\n" +
-                        "      \"explanation\": \"정답과 오답의 원리를 친절하게 설명하는 2문장 이상의 해설\"\n" +
-                        "    }\n" +
-                        "  }\n" +
-                        "]\n\n" +
-                        "[키워드 리스트]: %s";
-
-        String finalPrompt = String.format(promptTemplate, mainKeywords.toString());
+        String finalPrompt = String.format(promptTemplate, keyword);
 
         try {
             String jsonResponse = geminiService.callGemini(finalPrompt);
@@ -207,7 +252,7 @@ public class NewsService {
 
             return objectMapper.readValue(jsonResponse, new TypeReference<List<MainKeywordResult>>() {});
         } catch (Exception e) {
-            System.err.println("마스터 키워드 통합 Gemini 분석 및 파싱 중 에러 발생");
+            System.err.println("❌ 마스터 키워드 통합 Gemini 분석 및 파싱 중 에러 발생");
             e.printStackTrace();
             return new ArrayList<>();
         }
@@ -219,39 +264,62 @@ public class NewsService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
         int userPreferredCount = user.getPreferredKeywordCount();
-
         if (userPreferredCount < 3 || userPreferredCount > 6) {
             userPreferredCount = 6;
         }
 
-        List<DailyNews> allTodayNews = dailyNewsRepository.findAll();
+        LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
+        LocalDateTime endOfToday = LocalDate.now().atTime(LocalTime.MAX);
+        List<DailyNews> allTodayNews = dailyNewsRepository.findByCreatedAtBetween(startOfToday, endOfToday);
 
         if (allTodayNews == null || allTodayNews.isEmpty()) {
             return new TodayNewsResponse(0, new ArrayList<>());
         }
 
-        List<DailyNews> balancedList = rearrangeByCategorySequence(allTodayNews);
+        // 1. 시스템에서 다루는 4대 뉴스 카테고리 기준선 정의
+        List<String> baseCategories = List.of("경제", "사회", "과학", "세계");
 
-        int targetSize = Math.min(userPreferredCount, balancedList.size());
-        List<DailyNews> selectedNews = balancedList.subList(0, targetSize);
+        // 2. 사용자가 풀이한 이력이 있는 카테고리 순위 가져오기 (전체 가져오도록 페이징 제거 또는 넉넉하게 조회)
+        List<String> leastSolved = userQuizLogRepository.findLeastSolvedCategories(userId, org.springframework.data.domain.PageRequest.of(0, 4));
+
+        // 3. 전체 기준 카테고리 중, 풀이 이력(leastSolved)에 아예 존재하지 않는 '미학습 카테고리'를 우선 선별
+        String targetCategory = baseCategories.stream()
+                .filter(category -> !leastSolved.contains(category))
+                .findFirst()
+                // 4. 만약 모든 카테고리를 한 번씩은 다 풀었다면, 기존의 풀이 횟수가 가장 적은 순(leastSolved의 첫 번째 항목)을 선택하고, 그것도 비어있다면 "경제"로 롤백
+                .orElseGet(() -> leastSolved.isEmpty() ? "경제" : leastSolved.get(0));
+
+        List<DailyNews> priorityFilteredList = new ArrayList<>();
+
+        List<DailyNews> weakCategoryNews = allTodayNews.stream()
+                .filter(news -> targetCategory.equals(news.getCategory()))
+                .toList();
+        priorityFilteredList.addAll(weakCategoryNews);
+
+        List<DailyNews> remainBalancedList = rearrangeByWeakCategorySequence(allTodayNews, targetCategory);
+        java.util.Collections.shuffle(remainBalancedList);
+
+        for (DailyNews remainNews : remainBalancedList) {
+            if (!priorityFilteredList.contains(remainNews)) {
+                priorityFilteredList.add(remainNews);
+            }
+        }
+
+        int targetSize = Math.min(userPreferredCount, priorityFilteredList.size());
+        List<DailyNews> selectedNews = priorityFilteredList.subList(0, targetSize);
 
         List<TodayNewsResponse.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
-            Keyword realKeyword = keywordRepository.findByWordAndNewsId(news.getMainKeyword(), news.getId())
-                    .orElse(null);
+            Keyword realKeyword = news.getRelatedKeywords().isEmpty() ? null : news.getRelatedKeywords().get(0);
 
-            Long keywordId = (realKeyword != null) ? realKeyword.getId() : 999L;
-            String wordName = (realKeyword != null) ? realKeyword.getWord() : news.getMainKeyword();
-            String explanation = (realKeyword != null) ? realKeyword.getExplanation() : "이 단어에 대한 설명이 준비되고 있어요.";
+            Long keywordId = (realKeyword != null) ? realKeyword.getId() : DEFAULT_KEYWORD_ID;
+            String wordName = (realKeyword != null) ? realKeyword.getWord() : DEFAULT_WORD_NAME;
+            String explanation = (realKeyword != null) ? realKeyword.getExplanation() : DEFAULT_EXPLANATION;
             String exampleSentence = (realKeyword != null && realKeyword.getExampleSentence() != null)
                     ? realKeyword.getExampleSentence()
-                    : "예시 상황이 아직 입력되지 않았어요.";
+                    : DEFAULT_EXAMPLE;
 
             TodayNewsResponse.MainKeywordDto keywordDto = new TodayNewsResponse.MainKeywordDto(
-                    keywordId,
-                    wordName,
-                    explanation,
-                    exampleSentence,
-                    "MAIN"
+                    keywordId, wordName, explanation, exampleSentence, "MAIN"
             );
 
             return new TodayNewsResponse.NewsDto(
@@ -268,39 +336,37 @@ public class NewsService {
     }
 
     @Transactional(readOnly = true)
-    public QuizResponse getKeywordQuizByKeywordId(Long keywordId) {
-        Quiz quiz = quizRepository.findByKeyword_IdAndQuizType(keywordId, "KEYWORD")
-                .orElseThrow(() -> new IllegalArgumentException("해당 키워드에 연결된 퀴즈 존재하지 않음"));
-        try {
-            return convertToQuizResponse(quiz, true);
-        } catch (Exception e) {
-            throw new RuntimeException("퀴즈 조회 처리 중 파싱 오류 발생", e);
-        }
-    }
-
-    @Transactional(readOnly = true)
     public QuizResponse getNewsQuizByNewsId(Long newsId) {
         Quiz quiz = quizRepository.findByDailyNewsIdAndQuizType(newsId, "NEWS")
                 .orElseThrow(() -> new IllegalArgumentException("해당 뉴스 퀴즈 존재하지 않음"));
-        try {
-            return convertToQuizResponse(quiz, false);
-        } catch (Exception e) {
-            throw new RuntimeException("퀴즈 조회 처리 중 파싱 오류 발생", e);
-        }
+        return convertToQuizResponse(quiz, false);
     }
 
-    // 예외 발생 시 빈 리스트를 반환하여 삼키지 않고 외부로 전파하도록 변경 (상위 컨트롤러나 핸들러에서 실패 응답을 만들 수 있도록 지원)
-    private QuizResponse convertToQuizResponse(Quiz quiz, boolean includeKeywordId) throws Exception {
+    private QuizResponse convertToQuizResponse(Quiz quiz, boolean includeKeywordId) {
         List<QuizResponse.OptionDto> parsedOptions = new ArrayList<>();
-        List<String> rawOptions = objectMapper.readValue(quiz.getOptionsJson(), new TypeReference<List<String>>() {});
-        for (int i = 0; i < rawOptions.size(); i++) {
-            parsedOptions.add(new QuizResponse.OptionDto(i + 1, rawOptions.get(i)));
+
+        try {
+            List<String> rawOptions = objectMapper.readValue(quiz.getOptionsJson(), new TypeReference<List<String>>() {});
+            for (int i = 0; i < rawOptions.size(); i++) {
+                parsedOptions.add(new QuizResponse.OptionDto(i + 1, rawOptions.get(i)));
+            }
+        } catch (Exception e) {
+            System.err.println("🚨 [데이터 에러] Quiz ID " + quiz.getId() + "의 optionsJson 파싱 실패. 더미 선지로 대체합니다.");
+            parsedOptions = List.of(
+                    new QuizResponse.OptionDto(1, "데이터를 불러오는 중입니다."),
+                    new QuizResponse.OptionDto(2, "데이터를 불러오는 중입니다."),
+                    new QuizResponse.OptionDto(3, "데이터를 불러오는 중입니다."),
+                    new QuizResponse.OptionDto(4, "데이터를 불러오는 중입니다.")
+            );
         }
+
+        Long extractedNewsId = (quiz.getDailyNews() != null) ? quiz.getDailyNews().getId() : null;
+        Long extractedKeywordId = (quiz.getKeyword() != null) ? quiz.getKeyword().getId() : null;
 
         return new QuizResponse(
                 quiz.getId(),
-                quiz.getNewsId(),
-                includeKeywordId ? quiz.getKeywordId() : null,
+                extractedNewsId,
+                includeKeywordId ? extractedKeywordId : null,
                 quiz.getQuizType(),
                 quiz.getQuestion(),
                 parsedOptions
@@ -309,7 +375,6 @@ public class NewsService {
 
     @Transactional
     public QuizSubmitResponse submitAndGradeKeywordQuiz(Long userId, Long keywordId, QuizSubmitRequest request) {
-
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
 
@@ -336,31 +401,21 @@ public class NewsService {
         }
 
         QuizSubmitResponse.PointResultDto pointResult = new QuizSubmitResponse.PointResultDto(
-                earnedPoint,
-                user.getPoint()
+                earnedPoint, user.getPoint()
         );
 
         QuizSubmitResponse.LearningResultDto learningResult = new QuizSubmitResponse.LearningResultDto(
-                earnedPoint,
-                user.getPoint(),
-                true
+                earnedPoint, user.getPoint(), true
         );
 
         return new QuizSubmitResponse(
-                quiz.getId(),
-                request.getSelected_answer(),
-                isCorrect,
-                quiz.getAnswer(),
-                quiz.getExplanation(),
-                pointResult,
-                learningResult
+                quiz.getId(), request.getSelected_answer(), isCorrect, quiz.getAnswer(),
+                quiz.getExplanation(), pointResult, learningResult
         );
     }
 
     @Transactional
     public QuizSubmitResponse submitAndGradeNewsQuiz(Long userId, Long newsId, QuizSubmitRequest request) {
-
-        // 1. 퀴즈 데이터 조회
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
 
@@ -368,24 +423,18 @@ public class NewsService {
             throw new IllegalArgumentException("해당 퀴즈는 지정된 뉴스 기사에 속하지 않은 퀴즈입니다.");
         }
 
-        // 2. 유저 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
-        // 3. 중복 제출 여부 확인
         boolean alreadySolved = userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id());
-
-        // 4. [정답 검증] 두 값이 래퍼 타입(Long이나 Integer)일 수 있으므로 안전하게 equals 혹은 원시 타입 비교 보장
         boolean isCorrect = (quiz.getAnswer() == request.getSelected_answer());
 
         int earnedPoint = 0;
 
-        // 5. 최초 풀이일 때만 포인트 지급 및 로그 적재 (Submit 기능 유지)
         if (!alreadySolved) {
             earnedPoint = isCorrect ? 1 : 0;
-            user.updatePoint(earnedPoint); // 유저 엔티티의 더티 체킹으로 DB 반영
+            user.updatePoint(earnedPoint);
 
-            // 유저 제출 기록 적재
             UserQuizLog quizLog = UserQuizLog.builder()
                     .userId(userId)
                     .quizId(quiz.getId())
@@ -395,32 +444,27 @@ public class NewsService {
                     .isCompleted(true)
                     .build();
             userQuizLogRepository.save(quizLog);
-            System.out.println("[제출 기록 저장 완료] 유저: " + userId + ", 퀴즈: " + quiz.getId() + ", 획득 포인트: " + earnedPoint);
-        } else {
-            System.out.println("⚠️ 이미 풀었던 퀴즈 재제출 감지 -> 포인트 지급을 스킵합니다. 유저: " + userId);
         }
 
-        // 6. 응답 DTO 조립 (현재 유저의 최신 누적 포인트인 user.getPoint() 반영)
         QuizSubmitResponse.PointResultDto pointResult = new QuizSubmitResponse.PointResultDto(
-                earnedPoint,
-                user.getPoint()
+                earnedPoint, user.getPoint()
         );
 
         QuizSubmitResponse.LearningResultDto learningResult = new QuizSubmitResponse.LearningResultDto(
-                earnedPoint,
-                user.getPoint(),
-                true
+                earnedPoint, user.getPoint(), true
         );
 
         return new QuizSubmitResponse(
-                quiz.getId(),
-                request.getSelected_answer(),
-                isCorrect,
-                quiz.getAnswer(),
-                quiz.getExplanation(),
-                pointResult,
-                learningResult
+                quiz.getId(), request.getSelected_answer(), isCorrect, quiz.getAnswer(),
+                quiz.getExplanation(), pointResult, learningResult
         );
+    }
+
+    @Transactional(readOnly = true)
+    public QuizResponse getKeywordQuizByKeywordId(Long keywordId) {
+        Quiz quiz = quizRepository.findByKeyword_IdAndQuizType(keywordId, "KEYWORD")
+                .orElseThrow(() -> new IllegalArgumentException("해당 키워드 퀴즈가 존재하지 않습니다."));
+        return convertToQuizResponse(quiz, true);
     }
 
     @Transactional(readOnly = true)
@@ -428,36 +472,33 @@ public class NewsService {
         DailyNews news = dailyNewsRepository.findById(newsId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 뉴스 기사 ID"));
 
-        List<Keyword> keywordList = keywordRepository.findByNewsId(newsId);
+        List<Keyword> keywordList = keywordRepository.findByDailyNewsId(newsId);
 
         List<NewsDetailResponse.RelatedKeywordDto> relatedKeywords = keywordList.stream()
                 .map(k -> new NewsDetailResponse.RelatedKeywordDto(
-                        k.getId(),
-                        k.getWord(),
-                        k.getKeywordType(),
-                        k.getExplanation()
+                        k.getId(), k.getWord(), k.getKeywordType(), k.getExplanation()
                 )).toList();
 
         return new NewsDetailResponse(
-                news.getId(),
-                convertToEngCategory(news.getCategory()),
-                news.getTitle(),
-                news.getSummary(),
+                news.getId(), convertToEngCategory(news.getCategory()), news.getTitle(), news.getSummary(),
                 news.getImageUrl() != null ? news.getImageUrl() : "기본이미지URL",
                 news.getOriginalUrl() != null ? news.getOriginalUrl() : "원문출처없음",
                 relatedKeywords
         );
     }
 
-    private List<DailyNews> rearrangeByCategorySequence(List<DailyNews> source) {
-        List<DailyNews> economy = source.stream().filter(n -> "경제".equals(n.getCategory())).toList();
-        List<DailyNews> society = source.stream().filter(n -> "사회".equals(n.getCategory())).toList();
-        List<DailyNews> science = source.stream().filter(n -> "과학".equals(n.getCategory())).toList();
-        List<DailyNews> world = source.stream().filter(n -> "세계".equals(n.getCategory())).toList();
+    private List<DailyNews> rearrangeByWeakCategorySequence(List<DailyNews> source, String weakCategory) {
+        List<DailyNews> weakList = source.stream().filter(n -> weakCategory.equals(n.getCategory())).toList();
+
+        List<DailyNews> economy = source.stream().filter(n -> "경제".equals(n.getCategory()) && !weakCategory.equals("경제")).toList();
+        List<DailyNews> society = source.stream().filter(n -> "사회".equals(n.getCategory()) && !weakCategory.equals("사회")).toList();
+        List<DailyNews> science = source.stream().filter(n -> "과학".equals(n.getCategory()) && !weakCategory.equals("과학")).toList();
+        List<DailyNews> world = source.stream().filter(n -> "세계".equals(n.getCategory()) && !weakCategory.equals("세계")).toList();
 
         List<DailyNews> result = new ArrayList<>();
-        int maxSize = Math.max(Math.max(economy.size(), society.size()), Math.max(science.size(), world.size()));
+        result.addAll(weakList);
 
+        int maxSize = Math.max(Math.max(economy.size(), society.size()), Math.max(science.size(), world.size()));
         for (int i = 0; i < maxSize; i++) {
             if (i < economy.size()) result.add(economy.get(i));
             if (i < society.size()) result.add(society.get(i));

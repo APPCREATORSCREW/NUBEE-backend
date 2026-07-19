@@ -1,8 +1,11 @@
 package com.solux31.nubee_BE.domain.news.entity;
 
+import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -16,14 +19,8 @@ public class DailyNews {
     @Column(name = "news_id") // DB 컬럼명은 news_id로 유지하되 자바 필드명은 id로
     private Long id; // newsId -> id로 변경
 
-    @Column(nullable = true)
-    private Long keywordId;
-
     @Column(nullable = false, length = 100)
     private String title;
-
-    @Column(nullable = false)
-    private String mainKeyword;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String summary;
@@ -36,6 +33,11 @@ public class DailyNews {
 
     @Column(nullable = false, length = 1000)
     private String originalUrl;
+
+    // 뉴스 하나에 여러 키워드가 묶이는 1:N 양방향 매핑
+    @Builder.Default
+    @OneToMany(mappedBy = "dailyNews", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Keyword> relatedKeywords = new ArrayList<>();
 
     private LocalDateTime createdAt;
 

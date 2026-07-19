@@ -1,5 +1,6 @@
 package com.solux31.nubee_BE.domain.words.entity;
 
+import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,7 +16,7 @@ public class Keyword {
     @Column(name = "keyword_id")
     private Long id;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 50, unique = true)
     private String word; // 예: "우주선", "금리"
 
     @Column(nullable = false, columnDefinition = "TEXT")
@@ -27,8 +28,18 @@ public class Keyword {
     @Column(nullable = false, length = 20)
     private String keywordType; // "MAIN" 또는 "SUB" 구분
 
-    @Column(nullable = false)
-    private Long newsId; // 이 단어가 속한 뉴스 ID (DailyNews와 연결고리)
+    // 이 단어가 속한 뉴스 ID (DailyNews와 연결고리)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "news_id", nullable = false)
+    private DailyNews dailyNews;
+
+    // 연관관계 편의 메서드
+    public void setDailyNews(DailyNews dailyNews) {
+        this.dailyNews = dailyNews;
+        if (!dailyNews.getRelatedKeywords().contains(this)) {
+            dailyNews.getRelatedKeywords().add(this);
+        }
+    }
 
     public void updateExplanation(String explanation) {
         this.explanation = explanation;

@@ -1,6 +1,8 @@
 package com.solux31.nubee_BE.domain.words.service;
 
 import com.solux31.nubee_BE.domain.news.dto.NewsAnalysisResult;
+import com.solux31.nubee_BE.domain.news.entity.DailyNews;
+import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.words.dto.KeywordDetailResponse;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
@@ -16,6 +18,7 @@ import java.util.Optional;
 public class WordService {
 
     private final KeywordRepository keywordRepository;
+    private final DailyNewsRepository dailyNewsRepository;
 
     /**
      * [1단계 연동] 메인 키워드와 서브 키워드들을 받아 DB에 중복 없이 저장
@@ -28,7 +31,7 @@ public class WordService {
         // 1. 메인 키워드 중복 체크 후 저장 (타입을 "MAIN"으로 명시, 1단계 시점에는 뜻이 없으므로 빈 문자열)
         saveIfAbsent(mainKeywordName, "", "MAIN", newsId);
 
-        // 2. 서브 키워드 리스트 돌면서 중복 체크 후 저장 (타입을 "SUB"으로 명시, 뜻 설명도 함께 저장!)
+        // 2. 서브 키워드 리스트 돌면서 중복 체크 후 저장 (타입을 "SUB"으로 명시, 뜻 설명도 함께 저장)
         if (subKeywords != null) {
             for (NewsAnalysisResult.SubKeyword sub : subKeywords) {
                 saveIfAbsent(sub.getWord(), sub.getExplanation(), "SUB", newsId);
@@ -38,12 +41,12 @@ public class WordService {
 
     /**
      * [2단계 연동] Gemini가 새로 생성한 마스터 설명(뜻)을 단어 테이블에 업데이트
-     * 변경 사항: 단어 식별의 정확도를 위해 newsId를 인자로 받아 복합 조회로 대상을 제한함
+     * 단어 식별의 정확도를 위해 newsId를 인자로 받아 복합 조회로 대상을 제한함
      */
     @Transactional
     public Long updateKeywordExplanations(String keywordName, String explanation, String exampleSentence, Long newsId) {
         // 1. keywordRepository를 사용해 (word, newsId) 쌍으로 정확한 단어를 찾음
-        Optional<Keyword> keywordOpt = keywordRepository.findByWordAndNewsId(keywordName, newsId);
+        Optional<Keyword> keywordOpt = keywordRepository.findByWordAndDailyNewsId(keywordName, newsId);
 
         if (keywordOpt.isPresent()) {
             Keyword keyword = keywordOpt.get();
@@ -62,23 +65,25 @@ public class WordService {
     }
 
     /**
-     * 이미 존재하는 단어인지 검사하고, 없을 때만 새 엔티티를 만들어 저장하는 헬퍼 메서드
+     * 이미 존재하는 단어인지 검사하고, 없을 때만 새 엔티티를 만들어 저장
      * 변경 사항: 전역 단어 중복이 아닌, 동일 뉴스(newsId) 안에서 동일 단어가 중복되는지 검사함
      */
     private void saveIfAbsent(String wordName, String explanation, String type, Long newsId) {
         if (wordName == null || wordName.trim().isEmpty()) return;
 
-        // 레포지토리 규격 변경에 맞춰 findByWordAndNewsId로 교체
-        Optional<Keyword> existingKeyword = keywordRepository.findByWordAndNewsId(wordName, newsId);
+        Optional<Keyword> existingKeyword = keywordRepository.findByWordAndDailyNewsId(wordName, newsId);
 
         if (existingKeyword.isEmpty()) {
+            DailyNews proxyNews = dailyNewsRepository.getReferenceById(newsId);
+
             Keyword newKeyword = Keyword.builder()
                     .word(wordName)
                     .explanation(explanation != null ? explanation : "") // 받아온 뜻 정보를 빌더에 세팅 (null 방어)
                     .keywordType(type)   // "MAIN" 또는 "SUB"
-                    .newsId(newsId)      // 연관된 뉴스 외래키 ID
+                    .dailyNews(proxyNews)    // 연관된 뉴스 외래키 ID
                     .build();
 
+            newKeyword.setDailyNews(proxyNews);
             keywordRepository.save(newKeyword);
         }
     }
