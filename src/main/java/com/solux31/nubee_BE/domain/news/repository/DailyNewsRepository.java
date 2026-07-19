@@ -16,4 +16,6 @@ public interface DailyNewsRepository extends JpaRepository<DailyNews, Long> {
     List<DailyNews> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
 
     boolean existsByOriginalUrl(String originalUrl);
+
+    Optional<DailyNews> findByOriginalUrl(String originalUrl);
 }
