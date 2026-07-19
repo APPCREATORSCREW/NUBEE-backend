@@ -50,6 +50,7 @@ public class ProfileService {
         return ProfileResDTO.Profile.builder()
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .profileImageUrl(user.getProfileImageUrl())
                 .currentLevel(user.getCurrentLevel())
                 .currentPoint(user.getPoint())
                 .currentStreak(currentStreak)
@@ -104,6 +105,16 @@ public class ProfileService {
         return ProfileResDTO.SkinApply.builder()
                 .currentSkinId(targetUserSkin.getSkin().getId())
                 .currentSkinName(targetUserSkin.getSkin().getSkinName())
+                .build();
+    }
+
+    @Transactional
+    public ProfileResDTO.ProfileImage updateProfileImage(Long userId, ProfileReqDTO.ProfileImageUpdate request) {
+        User user = getUserOrThrow(userId);
+        user.updateProfileImage(request.getProfileImageUrl());
+
+        return ProfileResDTO.ProfileImage.builder()
+                .profileImageUrl(user.getProfileImageUrl())
                 .build();
     }
 

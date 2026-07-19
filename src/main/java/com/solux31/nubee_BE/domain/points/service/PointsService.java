@@ -40,7 +40,7 @@ public class PointsService {
         if (amount < 0) {
             throw new PointsException(PointsErrorCode.INVALID_AMOUNT);
         }
-        if (reason == null || reason.isBlank() || reason.length() > 50) {
+        if (reason == null || reason.isBlank() || reason.codePointCount(0, reason.length()) > 50) {
             throw new PointsException(PointsErrorCode.INVALID_REASON);
         }
 

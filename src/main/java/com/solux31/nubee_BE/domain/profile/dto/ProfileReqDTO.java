@@ -2,8 +2,11 @@ package com.solux31.nubee_BE.domain.profile.dto;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.validator.constraints.URL;
 
 public class ProfileReqDTO {
 
@@ -21,5 +24,13 @@ public class ProfileReqDTO {
     @NoArgsConstructor
     public static class SkinApply {
         private Long skinId;
+    }
+
+    @Getter
+    @NoArgsConstructor
+    public static class ProfileImageUpdate {
+        @NotBlank
+        @URL
+        private String profileImageUrl;
     }
 }
