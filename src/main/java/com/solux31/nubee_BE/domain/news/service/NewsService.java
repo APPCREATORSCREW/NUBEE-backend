@@ -18,6 +18,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,26 +41,12 @@ public class NewsService {
 
     // REQUIRES_NEW 트랜잭션과의 데드락 방지를 위해 메인 워크플로우 자체 @Transactional은 제거함
     public void executeDailyNewsWorkflow() {
-        // [1. 어제 자 중복 방지] DB를 비우기 전에 어제의 기사 링크와 키워드를 먼저 긁어옴
-        List<DailyNews> yesterdayNewsList = dailyNewsRepository.findAll();
-
-        List<String> yesterdayLinks = yesterdayNewsList.stream()
-                .map(DailyNews::getOriginalUrl)
-                .filter(url -> url != null && !url.isEmpty())
-                .toList();
-
-        List<String> yesterdayKeywords = yesterdayNewsList.stream()
-                .flatMap(news -> news.getRelatedKeywords().stream()) // 뉴스 내부의 키워드 리스트를 평탄화(스트림 연결)
-                .map(Keyword::getWord)                              // Keyword 객체에서 실제 단어(String) 추출
-                .filter(word -> word != null && !word.isEmpty())
-                .toList();
-
         // 기존 데이터를 지우던 cleanOldNewsAndQuizzes()를 주석 처리하여 뉴스 기록 누적
         // cleanOldNewsAndQuizzes();
 
         String[] categories = {"101", "102", "105", "104"};
 
-        // [2. 오늘 자 중복 방지] 오늘 이미 수집 완료된 키워드와 기사 링크를 저장하는 임시 리스트
+        // [오늘 자 중복 방지] 오늘 이미 수집 완료된 키워드와 기사 링크를 저장하는 임시 리스트
         List<String> collectedMainKeywords = new ArrayList<>();
         List<String> collectedLinks = new ArrayList<>();
 
@@ -75,7 +64,7 @@ public class NewsService {
                 if (savedCount >= 1) break; // 카테고리별로 1개만 성공하면 다음 카테고리로
 
                 // 필터 A: 어제 혹은 오늘 이미 수집한 기사 링크와 겹치면 패스
-                if (yesterdayLinks.contains(naverNews.getLink()) || collectedLinks.contains(naverNews.getLink())) {
+                if (collectedLinks.contains(naverNews.getLink()) || dailyNewsRepository.existsByOriginalUrl(naverNews.getLink())) {
                     System.out.println("⚠️ 중복 기사 링크 패스 [" + naverNews.getTitle() + "]");
                     continue;
                 }
@@ -85,8 +74,8 @@ public class NewsService {
 
                     if (mainKeyword != null) {
                         // 필터 B: 어제 풀었거나 오늘 이미 수집 리스트에 추가된 키워드라면 패스
-                        if (yesterdayKeywords.contains(mainKeyword) || collectedMainKeywords.contains(mainKeyword)) {
-                            System.out.println("⚠️ 중복 키워드 감지 [" + mainKeyword + "] -> 패스하고 다음 기사를 처리합니다.");
+                        if (collectedMainKeywords.contains(mainKeyword) || keywordRepository.existsByWord(mainKeyword)) {
+                            System.out.println("⚠️ 중복 키워드 감지 [" + mainKeyword + "] -> 패스합니다.");
                             continue;
                         }
 
@@ -249,7 +238,11 @@ public class NewsService {
             userPreferredCount = 6;
         }
 
-        List<DailyNews> allTodayNews = dailyNewsRepository.findAll();
+        // 오늘 새벽 00:00 이후로 수집된 뉴스만 정확히 필터링
+        LocalDateTime startOfToday = LocalDate.now().atStartOfDay(); // 오늘 00:00:00
+        LocalDateTime endOfToday = LocalDate.now().atTime(LocalTime.MAX); // 오늘 23:59:59
+        List<DailyNews> allTodayNews = dailyNewsRepository.findByCreatedAtBetween(startOfToday, endOfToday);
+
         if (allTodayNews == null || allTodayNews.isEmpty()) {
             return new TodayNewsResponse(0, new ArrayList<>());
         }

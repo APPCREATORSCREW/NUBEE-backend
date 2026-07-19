@@ -35,4 +35,6 @@ public interface KeywordRepository extends JpaRepository<Keyword, Long> {
      * @return 일치하는 Keyword 엔티티
      */
     Optional<Keyword> findByWordAndDailyNewsId(String word, Long newsId);
+
+    boolean existsByWord(String word);
 }
