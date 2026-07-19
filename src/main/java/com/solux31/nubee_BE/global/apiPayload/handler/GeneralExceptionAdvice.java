@@ -6,6 +6,7 @@ import com.solux31.nubee_BE.global.apiPayload.code.GeneralErrorCode;
 import com.solux31.nubee_BE.global.apiPayload.exception.ProjectException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -60,6 +61,16 @@ public class GeneralExceptionAdvice {
         BaseErrorCode code = GeneralErrorCode.CONFLICT;  // 409
         return ResponseEntity.status(code.getStatus())
                 .body(ApiResponse.onFailure(code, "이미 사용 중인 이메일입니다."));
+    }
+
+    //동시성 문제 예외 처리
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<String>> handleOptimisticLock(
+            ObjectOptimisticLockingFailureException e
+    ) {
+        BaseErrorCode code = GeneralErrorCode.CONFLICT;
+        return ResponseEntity.status(code.getStatus())
+                .body(ApiResponse.onFailure(code, "요청이 몰려 처리에 실패했습니다. 다시 시도해주세요."));
     }
 
     // 그 외의 정의되지 않은 모든 예외 처리
