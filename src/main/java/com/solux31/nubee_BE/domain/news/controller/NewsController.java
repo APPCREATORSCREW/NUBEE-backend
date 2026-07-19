@@ -23,25 +23,6 @@ public class NewsController {
     private final NewsService newsService;
 
     /**
-     * 오늘의 맞춤 키워드 및 뉴스 리스트 조회
-     * GET /api/v1/keywords
-     */
-    @Operation(summary = "오늘의 맞춤 키워드 및 뉴스 리스트 조회",
-            description = "사용자의 취약 카테고리를 분석하여 커스텀된 오늘 자 뉴스 배열과 메인 키워드를 반환합니다.")
-    @GetMapping("/keywords")
-    public ResponseEntity<?> getTodayNews(
-            @AuthenticationPrincipal AuthUser authUser
-    ) {
-        try {
-            TodayNewsResponse responseData = newsService.getBalancedTodayNewsForUser(authUser.getUserId());
-            return ResponseEntity.ok(responseData);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
      * [명세서 반영] 2번 오늘의 뉴스 상세 정보 조회
      * GET /api/v1/news/{news_id}
      */
