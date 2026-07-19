@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface ReviewRepository extends JpaRepository<UserNewsHistory, Long> {
     @Query("SELECT h FROM UserNewsHistory h " +
-            "JOIN FETCH h.news n" +
+            "JOIN FETCH h.news n " +      // ← 끝에 공백 추가
             "WHERE h.user.id = :userId " +
             "AND n.category = :category " +
             "ORDER BY h.viewedAt DESC")
