@@ -17,7 +17,7 @@ import java.time.LocalTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-@SQLDelete(sql = "UPDATE users SET deleted_at = NOW() WHERE user_id = ?")
+@SQLDelete(sql = "UPDATE users SET deleted_at = NOW() WHERE user_id = ? AND version = ?")
 @SQLRestriction("deleted_at IS NULL")
 public class User {
 
