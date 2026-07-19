@@ -11,6 +11,7 @@ public class ProfileResDTO {
     public static class Profile {
         private String username;
         private String email;
+        private String profileImageUrl;
         private int currentLevel;
         private int currentPoint;
         private int currentStreak;
@@ -41,5 +42,11 @@ public class ProfileResDTO {
     public static class SkinApply {
         private Long currentSkinId;
         private String currentSkinName;
+    }
+
+    @Getter
+    @Builder
+    public static class ProfileImage {
+        private String profileImageUrl;
     }
 }

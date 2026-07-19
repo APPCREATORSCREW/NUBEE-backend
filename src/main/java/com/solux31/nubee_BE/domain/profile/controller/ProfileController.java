@@ -102,4 +102,25 @@ public class ProfileController {
                 ApiResponse.onSuccess(ProfileSuccessCode.SKIN_APPLY_SUCCESS, result)
         );
     }
+
+    @Operation(
+            summary = "프로필 이미지 변경",
+            description = "유저가 갤러리에서 선택한 이미지의 URL을 받아 프로필 이미지를 변경합니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "프로필 이미지 변경 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청 (URL 형식 오류 등)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패 (토큰 없음 또는 만료)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
+    })
+    @PatchMapping("/profile-image")
+    public ResponseEntity<ApiResponse<ProfileResDTO.ProfileImage>> updateProfileImage(
+            @AuthenticationPrincipal AuthUser authUser,
+            @RequestBody ProfileReqDTO.ProfileImageUpdate request
+    ) {
+        ProfileResDTO.ProfileImage result = profileService.updateProfileImage(authUser.getUserId(), request);
+        return ResponseEntity.ok(
+                ApiResponse.onSuccess(ProfileSuccessCode.PROFILE_IMAGE_UPDATE_SUCCESS, result)
+        );
+    }
 }

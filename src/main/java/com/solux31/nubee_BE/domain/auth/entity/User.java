@@ -41,6 +41,9 @@ public class User {
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
+    @Column(name = "profile_image_url")
+    private String profileImageUrl;
+
     @Builder.Default
     @Column(name = "current_point", nullable = false)
     private int point = 0;
@@ -98,6 +101,11 @@ public class User {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    //프로필 이미지 업데이트
+    public void updateProfileImage(String imageUrl) {
+        this.profileImageUrl = imageUrl;
     }
 
     // 포인트 업데이트
