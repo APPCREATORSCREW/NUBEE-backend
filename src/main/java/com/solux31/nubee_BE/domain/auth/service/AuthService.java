@@ -57,6 +57,7 @@ public class AuthService {
     private final ApplicationEventPublisher eventPublisher;
     private final SkinRepository skinRepository;
     private final UserSkinRepository userSkinRepository;
+    private static final String DEFAULT_PROFILE_IMAGE_URL = "http://벌캐릭터이미지";
 
     // 회원가입
     @Transactional
@@ -103,6 +104,7 @@ public class AuthService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .birthDate(request.getBirthDate())
                 .preferredKeywordCount(request.getPreferredKeywordCount())
+                .profileImageUrl(DEFAULT_PROFILE_IMAGE_URL)
                 .parentEmail(isUnder14 ? request.getParentEmail() : null)
                 .isParentVerified(isParentVerified)
                 .status(UserStatus.ACTIVE)
