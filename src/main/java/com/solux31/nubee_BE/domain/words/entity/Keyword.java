@@ -16,7 +16,7 @@ public class Keyword {
     @Column(name = "keyword_id")
     private Long id;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 50, unique = true)
     private String word; // 예: "우주선", "금리"
 
     @Column(nullable = false, columnDefinition = "TEXT")

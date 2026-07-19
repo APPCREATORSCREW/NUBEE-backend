@@ -19,6 +19,10 @@ import java.net.InetAddress;
 import java.net.URL;
 import java.util.List;
 
+import javax.net.ssl.*;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
+
 @Component
 @RequiredArgsConstructor
 public class NewsTransactionHelper {
@@ -28,6 +32,23 @@ public class NewsTransactionHelper {
     private final DailyNewsRepository dailyNewsRepository;
     private final QuizRepository quizRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private SSLSocketFactory createTrustAllSslSocketFactory() {
+        try {
+            TrustManager[] trustAllCerts = new TrustManager[]{
+                    new X509TrustManager() {
+                        public X509Certificate[] getAcceptedIssuers() { return null; }
+                        public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+                        public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+                    }
+            };
+            SSLContext sc = SSLContext.getInstance("SSL");
+            sc.init(null, trustAllCerts, new SecureRandom());
+            return sc.getSocketFactory();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public String processSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String categoryName) throws Exception {
@@ -40,8 +61,9 @@ public class NewsTransactionHelper {
             String targetUrl = validateAndGetSafeUrl(naverNews.getLink());
 
             var document = Jsoup.connect(targetUrl)
-                    .timeout(5000)
-                    .followRedirects(false)
+                    .timeout(10000)
+                    .followRedirects(true) //리다이렉트 허용
+                    .sslSocketFactory(createTrustAllSslSocketFactory()) //SSL 인증서 검증 우회, 원래대로라면 검증해야하지만 기사 크롤링만 하기 때문에 우회 설정
                     .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
                     .get();
 
@@ -123,9 +145,13 @@ public class NewsTransactionHelper {
         int redirectCount = 0;
         while (redirectCount < 3) {
             URL url = new URL(urlString);
-            if (!"https".equalsIgnoreCase(url.getProtocol())) {
-                throw new IllegalArgumentException("허용되지 않은 프로토콜임 (https만 허용).");
+
+            // 변경: http와 https 프로토콜을 둘 다 허용하도록 조건문 수정
+            String protocol = url.getProtocol();
+            if (!"https".equalsIgnoreCase(protocol) && !"http".equalsIgnoreCase(protocol)) {
+                throw new IllegalArgumentException("허용되지 않은 프로토콜임 (http/https만 허용).");
             }
+
             String host = url.getHost();
             if (host == null || host.trim().isEmpty()) {
                 throw new IllegalArgumentException("올바르지 않은 호스트 주소임.");
@@ -134,10 +160,20 @@ public class NewsTransactionHelper {
             if (inetAddress.isLoopbackAddress() || inetAddress.isSiteLocalAddress() || inetAddress.isLinkLocalAddress()) {
                 throw new IllegalArgumentException("제한된 내부 네트워크 주소로의 요청은 불가함.");
             }
+
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+
+            // 만약 HTTPS 연결이라면, HttpURLConnection 내부의 SSL 검증도 우회
+            if (conn instanceof HttpsURLConnection) {
+                HttpsURLConnection httpsConn = (HttpsURLConnection) conn;
+                httpsConn.setSSLSocketFactory(createTrustAllSslSocketFactory());
+                // 호스트네임 검증도 함께 통과시킵니다.
+                httpsConn.setHostnameVerifier((hostname, session) -> true);
+            }
+
             conn.setInstanceFollowRedirects(false);
-            conn.setConnectTimeout(3000);
-            conn.setReadTimeout(3000);
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
             conn.setRequestMethod("GET");
             conn.connect();
 
@@ -161,76 +197,56 @@ public class NewsTransactionHelper {
 
     private NewsAnalysisResult analyzeSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String articleBody, String categoryName) {
         String prompt = String.format(
-                "너는 초등학생을 위한 뉴스 교육 서비스의 AI 콘텐츠 생성기이자, 친절한 선생님이야.\n" +
-                        "제공되는 [뉴스 링크]에 접속하여 전체 본문을 읽고, 제시된 예시 화면의 말투와 구조를 참고하여 요구사항에 맞춰 반드시 JSON 포맷으로만 답변해줘.\n\n" +
+                "You are an AI content generator and a friendly teacher for elementary school students (3rd-4th grade).\n" +
+                        "Analyze the provided [News Link] and [Alternative Text] below. You must reply strictly in the specified JSON format.\n\n" +
 
-                        "[메인 및 서브 키워드 추출 시 엄격한 금지 규칙 - 필독]\n" +
-                        "- 🚨 **지금 분석하는 뉴스의 카테고리는 [%s] 분야야.**\n" +
-                        "- 추출하는 메인 키워드(`mainKeyword`)와 서브 키워드(`subKeywords`)는 **반드시 이 [%s] 분야의 학술적/교양적 핵심 도메인 개념에 완벽하게 부합하는 전문 어휘**로만 선정해줘.\n" +
-                        "- **[매우 중요 - 범용적인 일상 단어 추출 금지]**:\n" +
-                        "  1. 일상생활에서 흔히 쓰이는 일반 명사나 단순 생활 단어(예: 공휴일, 주말, 여행, 날씨, 스마트폰, 밥 등)는 기사 본문에 아무리 많이 언급되더라도 **절대 메인/서브 키워드로 추출하지 마.**\n" +
-                        "  2. 카테고리 고유의 색채가 흐릿하거나 타 분야에 더 알맞은 단어 역시 철저히 배제해줘.\n" +
-                        "  *(잘못된 예시)* [%s] 카테고리 기사인데 '공휴일'(단순 생활), '헌법'(법률/정치), '휴대폰'(제품/과학) 등을 추출하는 것.\n" +
-                        "  *(올바른 예시)* [%s] 카테고리에 완벽히 특화되어 초등 교양 상식에 기여할 수 있는 단어(예: '내수진작', '인플레이션', '기준금리', '수출')를 대신 추출할 것.\n" +
-                        "- **사람 이름(예: 대통령 이름, 정치인, 연예인, 범죄자 등 구체적인 인명)은 절대 메인/서브 키워드로 추출하지 마.** 인물이 중심이 되는 단어는 무조건 제외해야 해.\n" +
-                        "- 정치적 쟁점, 범죄 사건, 종교적 갈등, 연예계 가십 등 **초등학생에게 교육적으로 부적절하거나 논란이 될 수 있는 민감한 키워드는 철저히 배제해.**\n" +
-                        "- 반드시 '개념', '현상', '시사 상식', '교양 원리'에 해당하는 건강하고 교육적인 명사 단어만 키워드로 선정해줘.\n" +
-                        "  *(좋은 예시)* 금리, 반도체, 인플레이션, 우주선, 인공지능, 탄소배출권\n" +
-                        "  *(나쁜 예시)* 홍길동(인명), 탄핵(정치 논란), 음주운전(사건/사고)\n\n" +
+                        "[CRITICAL CRITERIA FOR KEYWORD EXTRACTION]\n" +
+                        "- 🚨 Current Category: [%s]\n" +
+                        "- Target Vocabulary: Main (`mainKeyword`) and sub-keywords (`subKeywords`) MUST strictly belong to the academic/academic domain of this [%s] field.\n" +
+                        "- 🚨 DO NOT extract common everyday words (e.g., weekend, holiday, travel, weather, smartphone, food) even if they appear frequently.\n" +
+                        "- 🚨 DO NOT extract any specific real persons' names (e.g., politician, celebrity, criminal names).\n" +
+                        "- 🚨 DO NOT choose controversial or sensitive topics inappropriate for children (e.g., political conflicts, crimes, scandals).\n\n" +
 
-                        "요구사항 및 분량 제한 규칙:\n" +
-                        "1. summary: 기사 전체 본문을 바탕으로 초등학교 3~4학년 눈높이에 맞춰 친절하게 요약한 요약문.\n" +
-                        "   - [텍스트 구조 및 분량 제약]: **반드시 딱 2개 또는 3개의 소제목 문단 구조**로만 나누어 작성해줘. (너무 길어지지 않게 조절)\n" +
-                        "   - 각 문단은 반드시 **'소제목'**으로 시작해야 해. (예: 🎬 반도체가 잘 팔리고 있어요)\n" +
-                        "   - 소제목 아래의 본문 내용은 문단당 4~5문장 내외로 작성해줘.\n" +
-                        "   - [말투 규칙]: '~하는 거예요.', '~와 같아요.', '~처럼요!' 같은 다정하고 친근한 초등용 구어체 스토리텔링 말투를 사용해줘.\n" +
-                        "   - [비유 규칙]: 뉴스에 나오는 어려운 경제/사회 수치나 개념은 아이들이 상상할 수 있는 일상적인 비유( 예: 냄비 불을 줄이는 것, 지폐를 쌓는 것 등)를 1개 이상 섞어줘.\n" +
-                        "2. mainKeyword: 기사의 핵심이 되는 메인 키워드 딱 1개 (단어 이름만 출력)\n" +
-                        "3. subKeywords: 기사 내에서 초등학생이 추가로 알면 좋은 중요 어휘/시사용어 3개 세트\n" +
-                        "   - 🚨 **[서브 단어 필수 요구사항]**: 본문 팝업 전용이므로 각 서브 단어의 이름(`word`)과 초등학생 눈높이에 맞춘 쉽고 명확한 **1~2문장 이내의 뜻 설명(`explanation`)**을 함께 생성해줘. (서브 키워드는 예문이나 퀴즈를 만들지 마)\n" +
-                        "4. newsQuiz: 뉴스 본문 내용을 잘 이해했는지 확인하는 독해력 확인용 4지선다 객관식 퀴즈\n" +
-                        "   - 🚨 [퀴즈 출제 규칙]: 단순히 단어 뜻을 묻지 말고, **뉴스 본문 속 현상의 인과관계(예: ~를 하려는 이유는 무엇인가요?)**를 묻는 질문을 생성해줘.\n" +
-                        "   - newsQuiz.answer (정답): 🚨 **[주의 - 매우 중요]** 정답은 인덱스(0,1,2,3)가 아닌 **실제 선지 번호인 1, 2, 3, 4 중 하나**로만 정확히 지정해줘. (0-based 인덱스 절대 금지!)\n" +
-                        "   - 🚨 **반드시 생성한 `options` 배열의 `(정답 번호 - 1)`번째 칸에 진짜 정답에 해당하는 문장**을 배치해줘. 예를 들어 `answer`가 2라면, `options` 배열의 2번째 항목에 정답에 알맞은 선지 문장이 들어가 있어야만 해. 둘의 매칭 싱크를 완벽하게 검증한 뒤 최종 JSON을 출력해줘.\n" +
-                        "   - newsQuiz.explanation(퀴즈 해설): '~처럼요!' 같은 구어체 말투를 유지하면서, 본문의 핵심 맥락을 짚어주는 친절한 해설을 2문장 이상 작성해줘.\n\n" +
+                        "[REQUIREMENTS FOR OUTPUT FIELDS - WRITE ALL VALUES IN KOREAN]\n" +
+                        "1. summary: A child-friendly news summary tailored to 3rd-4th grade level.\n" +
+                        "   - Structure: Split into EXACTLY 2 or 3 short paragraphs.\n" +
+                        "   - Constraint: Each paragraph MUST start with a subtitle accompanied by a relevant emoji (e.g., 🎬 소제목).\n" +
+                        "   - Tone & Style: Use a very warm, friendly colloquial storytelling style ('~하는 거예요.', '~와 같아요.', '~처럼요!'). Include at least one relatable metaphor for difficult concepts.\n" +
+                        "2. mainKeyword: Exactly 1 core word representing the article (plain text in Korean).\n" +
+                        "3. subKeywords: A list of 3 educational vocabulary words found in the text.\n" +
+                        "   - Each item must have `word` and `explanation` (a clear definition in Korean within 1-2 sentences).\n" +
+                        "4. newsQuiz: A 4-option multiple-choice reading comprehension quiz.\n" +
+                        "   - Rule: Question should ask about the causal relationships or core phenomena in the news, NOT just a simple word definition.\n" +
+                        "   - newsQuiz.answer: 🚨 CRITICAL. Must be an integer between 1 and 4 (1-based index). Do NOT use 0-based index.\n" +
+                        "   - Make sure the actual correct sentence matches the `options[answer - 1]` position perfectly.\n" +
+                        "   - newsQuiz.explanation: Provide a friendly explanation in Korean (at least 2 sentences) in the same colloquial tone.\n\n" +
 
-                        "[⚠️ 팩트 기반 및 할루시네이션 방지 규칙]\n" +
-                        "- 절대 제공된 [뉴스 본문]하고 [대체 텍스트]에 없는 사실을 임의로 지어내거나 추측해서 꾸며내지 마. 예시를 들거나 분량을 채우기 위해 소설을 쓰지 말고 본문의 팩트만 친절하게 풀어써.\n" +
-                        "- 답할 때 앞뒤로 설명이나 마크다운 주석(```json ... ```)을 절대 붙이지 말고, 오직 {로 시작해서 }로 끝나는 순수한 JSON 데이터만 반환해.\n\n" +
+                        "[⚠️ NO HALLUCINATION & STRICT JSON RULE]\n" +
+                        "- Do not fabricate facts. Rely ONLY on the provided news text.\n" +
+                        "- Output ONLY the pure raw JSON object starting with { and ending with }. Do not include markdown code block syntax (```json).\n\n" +
+                        "- Ensure all content is generated based on universally accepted and accurate economic, social, or scientific facts related to the provided core keyword(s) (e.g., 'Inflation', 'Interest Rate').\n" +
+                        "- Use the provided news summary strictly as a reference for the 'real-world context' in which the keyword is used." +
+                        "- The core definitions and cause-and-effect relationships must be written based entirely on objective facts suitable for South Korean elementary school 3rd and 4th-grade curriculum levels."+
 
-                        "[출력 포맷 가이드 (JSON 구조)]\n" +
+                        "[OUTPUT FORMAT GUIDE]\n" +
                         "{\n" +
                         "  \"summary\": \"[이모지] [소제목 1]\\n[초등학생 눈높이에 맞춘 구어체와 비유를 섞은 친절한 설명 1]\\n\\n[이모지] [소제목 2]\\n[원인과 결과를 쉽게 풀어쓴 설명 2]\",\n" +
                         "  \"mainKeyword\": \"추출된 핵심 메인 키워드 단어 1개\",\n" +
                         "  \"subKeywords\": [\n" +
-                        "    {\n" +
-                        "      \"word\": \"추천 시사어휘1\",\n" +
-                        "      \"explanation\": \"초등 눈높이로 쉽게 풀어쓴 시사어휘1의 2~3문장 뜻 설명이야.\"\n" +
-                        "    },\n" +
-                        "    {\n" +
-                        "      \"word\": \"추천 시사어휘2\",\n" +
-                        "      \"explanation\": \"어린이가 이해하기 좋게 다정하게 설명한 뜻 풀이야.\"\n" +
-                        "    },\n" +
-                        "    {\n" +
-                        "      \"word\": \"추천 시사어휘3\",\n" +
-                        "      \"explanation\": \"단어의 핵심을 짚어주는 짧고 명확한 설명이야.\"\n" +
-                        "    }\n" +
+                        "    { \"word\": \"추천 시사어휘1\", \"explanation\": \"뜻 설명\" },\n" +
+                        "    { \"word\": \"추천 시사어휘2\", \"explanation\": \"뜻 설명\" },\n" +
+                        "    { \"word\": \"추천 시사어휘3\", \"explanation\": \"뜻 설명\" }\n" +
                         "  ],\n" +
                         "  \"newsQuiz\": {\n" +
                         "    \"question\": \"뉴스 본문 속 인과관계나 핵심 현상을 묻는 맥락 질문\",\n" +
-                        "    \"options\": [\"확실한 오답 선지1\", \"뉴스 팩트에 기반한 정답 선지\", \"그럴듯한 오답 선지3\", \"헷갈리는 오답 선지4\"],\n" +
+                        "    \"options\": [\"오답 선지1\", \"정답 선지\", \"오답 선지3\", \"오답 선지4\"],\n" +
                         "    \"answer\": 2,\n" +
-                        "    \"explanation\": \"왜 그것이 정답이고 오답인지 뉴스 맥락을 짚어주는 2문장 이상의 친절한 구어체 해설\"\n" +
+                        "    \"explanation\": \"정답 원리를 짚어주는 2문장 이상의 친절한 구어체 해설\"\n" +
                         "  }\n" +
                         "}\n\n" +
-                        "[뉴스 링크]: %s\n" +
-                        "[대체 텍스트]: %s",
-                categoryName,
-                categoryName,
-                categoryName,
-                categoryName,
-                naverNews.getLink(),
-                articleBody
+                        "[News Link]: %s\n" +
+                        "[Alternative Text]: %s",
+                categoryName, categoryName, naverNews.getLink(), articleBody
         );
 
         try {
@@ -240,9 +256,19 @@ public class NewsTransactionHelper {
                 return null;
             }
 
-            jsonResponse = jsonResponse.replaceAll("```json|```", "").trim();
+            jsonResponse = jsonResponse.trim();
+            int startIndex = jsonResponse.indexOf("{");
+            int endIndex = jsonResponse.lastIndexOf("}");
 
-            return objectMapper.readValue(jsonResponse, NewsAnalysisResult.class);
+            if (startIndex == -1 || endIndex == -1 || startIndex > endIndex) {
+                System.err.println("❌ Gemini 응답에 유효한 JSON 구조가 포함되어 있지 않습니다.");
+                return null;
+            }
+
+            // {로 시작해서 }로 끝나는 알맹이만 파싱
+            String pureJson = jsonResponse.substring(startIndex, endIndex + 1);
+
+            return objectMapper.readValue(pureJson, NewsAnalysisResult.class);
         } catch (Exception e) {
             System.err.println("❌ 개별 뉴스 Gemini 연성 및 파싱 중 에러 발생");
             e.printStackTrace();
