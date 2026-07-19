@@ -276,8 +276,18 @@ public class NewsService {
             return new TodayNewsResponse(0, new ArrayList<>());
         }
 
-        List<String> leastSolved = userQuizLogRepository.findLeastSolvedCategories(userId, org.springframework.data.domain.PageRequest.of(0, 1));
-        String targetCategory = leastSolved.isEmpty() ? "경제" : leastSolved.get(0);
+        // 1. 시스템에서 다루는 4대 뉴스 카테고리 기준선 정의
+        List<String> baseCategories = List.of("경제", "사회", "과학", "세계");
+
+        // 2. 사용자가 풀이한 이력이 있는 카테고리 순위 가져오기 (전체 가져오도록 페이징 제거 또는 넉넉하게 조회)
+        List<String> leastSolved = userQuizLogRepository.findLeastSolvedCategories(userId, org.springframework.data.domain.PageRequest.of(0, 4));
+
+        // 3. 전체 기준 카테고리 중, 풀이 이력(leastSolved)에 아예 존재하지 않는 '미학습 카테고리'를 우선 선별
+        String targetCategory = baseCategories.stream()
+                .filter(category -> !leastSolved.contains(category))
+                .findFirst()
+                // 4. 만약 모든 카테고리를 한 번씩은 다 풀었다면, 기존의 풀이 횟수가 가장 적은 순(leastSolved의 첫 번째 항목)을 선택하고, 그것도 비어있다면 "경제"로 롤백
+                .orElseGet(() -> leastSolved.isEmpty() ? "경제" : leastSolved.get(0));
 
         List<DailyNews> priorityFilteredList = new ArrayList<>();
 

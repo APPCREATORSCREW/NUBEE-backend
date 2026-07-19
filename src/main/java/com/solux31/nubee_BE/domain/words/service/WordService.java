@@ -41,7 +41,7 @@ public class WordService {
 
     /**
      * [2단계 연동] Gemini가 새로 생성한 마스터 설명(뜻)을 단어 테이블에 업데이트
-     * 변경 사항: 단어 식별의 정확도를 위해 newsId를 인자로 받아 복합 조회로 대상을 제한함
+     * 단어 식별의 정확도를 위해 newsId를 인자로 받아 복합 조회로 대상을 제한함
      */
     @Transactional
     public Long updateKeywordExplanations(String keywordName, String explanation, String exampleSentence, Long newsId) {
@@ -65,7 +65,7 @@ public class WordService {
     }
 
     /**
-     * 이미 존재하는 단어인지 검사하고, 없을 때만 새 엔티티를 만들어 저장하는 헬퍼 메서드
+     * 이미 존재하는 단어인지 검사하고, 없을 때만 새 엔티티를 만들어 저장
      * 변경 사항: 전역 단어 중복이 아닌, 동일 뉴스(newsId) 안에서 동일 단어가 중복되는지 검사함
      */
     private void saveIfAbsent(String wordName, String explanation, String type, Long newsId) {

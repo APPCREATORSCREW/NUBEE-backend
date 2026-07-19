@@ -42,8 +42,9 @@ public class NewsTransactionHelper {
                         public void checkServerTrusted(X509Certificate[] certs, String authType) {}
                     }
             };
-            SSLContext sc = SSLContext.getInstance("SSL");
-            sc.init(null, trustAllCerts, new SecureRandom());
+
+            SSLContext sc = SSLContext.getInstance("TLSv1.3");
+            sc.init(null, trustAllCerts, new java.security.SecureRandom());
             return sc.getSocketFactory();
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -61,11 +62,11 @@ public class NewsTransactionHelper {
             String targetUrl = validateAndGetSafeUrl(naverNews.getLink());
 
             var document = Jsoup.connect(targetUrl)
-                    .timeout(10000)
-                    .followRedirects(true) //리다이렉트 허용
-                    .sslSocketFactory(createTrustAllSslSocketFactory()) //SSL 인증서 검증 우회, 원래대로라면 검증해야하지만 기사 크롤링만 하기 때문에 우회 설정
-                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                    .get();
+                    .timeout(3000) // 타임아웃 최적화 값 유지
+                    .followRedirects(false) // true에서 false로 변경하여 SSRF 및 우회 차단
+                    .sslSocketFactory(createTrustAllSslSocketFactory())
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36") // 봇 차단 회피 유지
+                    .get(); //SSL 인증서 검증 우회, 원래대로라면 검증해야하지만 기사 크롤링만 하기 때문에 우회 설정
 
             articleBody = document.body().text();
 
