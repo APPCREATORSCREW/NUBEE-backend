@@ -12,9 +12,7 @@ import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
-import com.solux31.nubee_BE.domain.words.entity.mapping.UserKeyword;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
-import com.solux31.nubee_BE.domain.words.repository.UserKeywordRepository;
 import com.solux31.nubee_BE.domain.words.service.WordService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -41,7 +39,6 @@ public class NewsService {
     private final UserRepository userRepository;
     private final UserQuizLogRepository userQuizLogRepository;
     private final KeywordRepository keywordRepository;
-    private final UserKeywordRepository userKeywordRepository;
 
     private static final Long DEFAULT_KEYWORD_ID = 999L;
     private static final String DEFAULT_WORD_NAME = "알 수 없음";
@@ -533,23 +530,28 @@ public class NewsService {
                 .findTodayLogsByUserIdAndQuizType(userId, "KEYWORD");
 
         // 3. 키워드 퀴즈 로그에서 키워드 목록 + 뉴스 원문 링크 추출
-        List<NewsResDTO.KeywordInfo> keywordInfos = keywordLogs.stream()
-                .map(log -> {
-                    Quiz quiz = quizRepository.findById(log.getQuizId())
-                            .orElse(null);
-                    if (quiz == null || quiz.getKeyword() == null) return null;
+        // quizId 목록 일괄 추출
+        List<Long> quizIds = keywordLogs.stream()
+                .map(UserQuizLog::getQuizId)
+                .distinct()
+                .collect(Collectors.toList());
 
+        // 한 번에 Quiz 조회
+        List<Quiz> quizzes = quizRepository.findAllById(quizIds);
+
+        // 키워드 목록 + 뉴스 원문 링크 추출
+        List<NewsResDTO.KeywordInfo> keywordInfos = quizzes.stream()
+                .filter(quiz -> quiz.getKeyword() != null)
+                .map(quiz -> {
                     Keyword keyword = quiz.getKeyword();
                     String originalUrl = keyword.getDailyNews() != null
                             ? keyword.getDailyNews().getOriginalUrl()
                             : null;
-
                     return NewsResDTO.KeywordInfo.builder()
                             .word(keyword.getWord())
                             .originalUrl(originalUrl)
                             .build();
                 })
-                .filter(info -> info != null)
                 .distinct()
                 .collect(Collectors.toList());
 
