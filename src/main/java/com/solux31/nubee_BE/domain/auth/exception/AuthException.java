@@ -1,7 +1,10 @@
 package com.solux31.nubee_BE.domain.auth.exception;
 
-public class AuthException extends RuntimeException {
-    public AuthException(String message) {
-        super(message);
+import com.solux31.nubee_BE.global.apiPayload.code.BaseErrorCode;
+import com.solux31.nubee_BE.global.apiPayload.exception.ProjectException;
+
+public class AuthException extends ProjectException {
+    public AuthException(BaseErrorCode errorCode) {
+        super(errorCode);
     }
 }

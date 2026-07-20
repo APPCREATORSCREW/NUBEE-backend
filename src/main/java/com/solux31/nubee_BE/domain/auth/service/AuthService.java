@@ -20,6 +20,8 @@ import com.solux31.nubee_BE.domain.auth.entity.RefreshToken;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.enums.EmailVerificationType;
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
+import com.solux31.nubee_BE.domain.auth.exception.AuthException;
+import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
 import com.solux31.nubee_BE.domain.auth.repository.EmailVerificationRepository;
 import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
@@ -64,12 +66,12 @@ public class AuthService {
 
         // 이메일 중복 확인
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("이미 사용 중인 이메일입니다.");
+            throw new AuthException(AuthErrorCode.DUPLICATE_EMAIL);
         }
 
         // 비밀번호 확인
         if (!request.getPassword().equals(request.getPasswordConfirm())) {
-            throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+            throw new AuthException(AuthErrorCode.PASSWORD_CONFIRM_MISMATCH);
         }
 
         // User 생성
@@ -84,7 +86,7 @@ public class AuthService {
 
         // 기본 스킨 조회
         Skin defaultSkin = skinRepository.findBySkinCode("DEFAULT")
-                .orElseThrow(() -> new IllegalArgumentException("기본 스킨이 존재하지 않습니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.DEFAULT_SKIN_NOT_FOUND));
 
         // user_skin에 기본 스킨 지급
         UserSkin userSkin = UserSkin.builder()
@@ -113,11 +115,11 @@ public class AuthService {
 
         // 이메일로 유저 찾기
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이메일입니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
 
         // 비밀번호 확인
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
+            throw new AuthException(AuthErrorCode.INVALID_PASSWORD);
         }
 
         // 기존 RefreshToken 삭제
@@ -137,7 +139,7 @@ public class AuthService {
     @Transactional
     public void logout(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
 
         // RefreshToken 삭제
         refreshTokenRepository.deleteByUser(user);
@@ -181,22 +183,22 @@ public class AuthService {
 
         // Refresh Token 유효성 검증
         if (!jwtUtil.isTokenValid(refreshToken)) {
-            throw new IllegalArgumentException("유효하지 않은 Refresh Token입니다.");
+            throw new AuthException(AuthErrorCode.INVALID_TOKEN);
         }
 
         // Refresh Token 타입 확인
         if (!jwtUtil.isRefreshToken(refreshToken)) {
-            throw new IllegalArgumentException("Refresh Token이 아닙니다.");
+            throw new AuthException(AuthErrorCode.NOT_REFRESH_TOKEN);
         }
 
         // SHA-256 해싱 후 DB 조회
         String hashedToken = hashToken(refreshToken);
         RefreshToken storedToken = refreshTokenRepository.findByTokenHash(hashedToken)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 Refresh Token입니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.TOKEN_NOT_FOUND));
 
         // 만료 여부 확인
         if (storedToken.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("만료된 Refresh Token입니다.");
+            throw new AuthException(AuthErrorCode.TOKEN_EXPIRED);
         }
 
         // 유저 조회
@@ -221,21 +223,21 @@ public class AuthService {
 
         // 유저 조회
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
 
         // 현재 비밀번호 확인
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("현재 비밀번호가 일치하지 않습니다.");
+            throw new AuthException(AuthErrorCode.INVALID_PASSWORD);
         }
 
         // 새 비밀번호 확인
         if (!request.getNewPassword().equals(request.getNewPasswordConfirm())) {
-            throw new IllegalArgumentException("새 비밀번호가 일치하지 않습니다.");
+            throw new AuthException(AuthErrorCode.PASSWORD_CONFIRM_MISMATCH);
         }
 
         // 현재 비밀번호랑 새 비밀번호가 같으면 에러
         if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
-            throw new IllegalArgumentException("현재 비밀번호와 동일한 비밀번호로 변경할 수 없습니다.");
+            throw new AuthException(AuthErrorCode.SAME_AS_OLD_PASSWORD);
         }
 
         // 비밀번호 변경
@@ -253,7 +255,7 @@ public class AuthService {
         // 존재하지 않거나 이름 불일치 모두 같은 메시지 반환 (보안)
         User user = userRepository.findByEmail(request.getEmail())
                 .filter(u -> u.getUsername().equals(request.getUsername()))
-                .orElseThrow(() -> new IllegalArgumentException("이름 또는 이메일이 일치하지 않습니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
 
 
         Optional<EmailVerification> existing = emailVerificationRepository
@@ -263,7 +265,7 @@ public class AuthService {
         int nextSendCount = 1;
         if (existing.isPresent()) {
             if (existing.get().getSendCount() >= 5) {
-                throw new IllegalArgumentException("인증 코드 발송 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.");
+                throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
             }
             nextSendCount = existing.get().getSendCount() + 1;
             emailVerificationRepository.deleteByEmailAndType(
@@ -294,22 +296,21 @@ public class AuthService {
         EmailVerification verification = emailVerificationRepository
                 .findTopByEmailAndTypeOrderByCreatedAtDesc(
                         request.getEmail(), EmailVerificationType.PASSWORD_RESET)
-                .orElseThrow(() -> new IllegalArgumentException("인증 코드가 존재하지 않습니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.EMAIL_CODE_NOT_FOUND));
 
         // 만료 확인
         if (verification.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("인증 코드가 만료되었습니다.");
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXPIRED);
         }
 
         // 만료 확인 아래에 추가
         if (verification.getFailCount() >= 5) {
-            throw new IllegalArgumentException("인증 코드 시도 횟수를 초과했습니다. 다시 발송해주세요.");
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_FAIL);
         }
 
         // 코드 일치 확인
         if (!verification.getCode().equals(request.getCode())) {
-            verification.increaseFailCount();
-            throw new IllegalArgumentException("인증 코드가 일치하지 않습니다.");
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_MISMATCH);
         }
 
         // 인증 완료 처리
@@ -324,21 +325,21 @@ public class AuthService {
         EmailVerification verification = emailVerificationRepository
                 .findTopByEmailAndTypeAndIsVerifiedTrueOrderByCreatedAtDesc(
                         request.getEmail(), EmailVerificationType.PASSWORD_RESET)
-                .orElseThrow(() -> new IllegalArgumentException("이메일 인증이 완료되지 않았습니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.EMAIL_NOT_VERIFIED));
 
         // 인증 만료 여부 검사
         if (verification.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("인증이 만료되었습니다. 다시 인증해주세요.");
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXPIRED);
         }
 
         // 새 비밀번호 확인
         if (!request.getNewPassword().equals(request.getNewPasswordConfirm())) {
-            throw new IllegalArgumentException("새 비밀번호가 일치하지 않습니다.");
+            throw new AuthException(AuthErrorCode.PASSWORD_CONFIRM_MISMATCH);
         }
 
         // 유저 조회 후 비밀번호 변경
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이메일입니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
         user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
 
         // 기존 Refresh Token 전체 삭제 (재로그인 유도)
@@ -360,7 +361,7 @@ public class AuthService {
         int nextSendCount = 1;
         if (existing.isPresent()) {
             if (existing.get().getSendCount() >= 5) {
-                throw new IllegalArgumentException("인증 코드 발송 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.");
+                throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
             }
             nextSendCount = existing.get().getSendCount() + 1;
             emailVerificationRepository.deleteByEmailAndType(
@@ -391,21 +392,21 @@ public class AuthService {
         EmailVerification verification = emailVerificationRepository
                 .findTopByEmailAndTypeOrderByCreatedAtDesc(
                         request.getParentEmail(), EmailVerificationType.PARENT_VERIFY)
-                .orElseThrow(() -> new IllegalArgumentException("인증 코드가 존재하지 않습니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.EMAIL_CODE_NOT_FOUND));
 
         // 만료 확인
         if (verification.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("인증 코드가 만료되었습니다.");
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXPIRED);
         }
 
         if (verification.getFailCount() >= 5) {
-            throw new IllegalArgumentException("인증 코드 시도 횟수를 초과했습니다. 다시 발송해주세요.");
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_FAIL);
         }
 
         // 코드 일치 확인
         if (!verification.getCode().equals(request.getCode())) {
             verification.increaseFailCount();
-            throw new IllegalArgumentException("인증 코드가 일치하지 않습니다.");
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_MISMATCH);
         }
 
         // 인증 완료 처리
@@ -413,7 +414,7 @@ public class AuthService {
 
         // User 테이블 업데이트 추가
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
         user.updateParentInfo(request.getParentEmail());
     }
 
@@ -422,7 +423,7 @@ public class AuthService {
     public BirthDateResDTO saveBirthDate(String email, BirthDateReqDTO request) {
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
 
         // 생년월일 저장
         user.updateBirthDate(request.getBirthDate());
@@ -439,7 +440,7 @@ public class AuthService {
     public void saveKeywordCount(String email, KeywordCountReqDTO request) {
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
 
         user.updatePreferredKeywordCount(request.getPreferredKeywordCount());
     }
