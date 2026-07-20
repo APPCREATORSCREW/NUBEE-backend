@@ -25,15 +25,4 @@ public class SignupReqDTO {
     @NotBlank(message = "비밀번호 확인은 필수입니다.")
     private String passwordConfirm;
 
-    @NotNull(message = "생년월일은 필수입니다.")
-    @Past(message = "생년월일은 과거 날짜여야 합니다.")
-    private LocalDate birthDate;
-
-    @NotNull(message = "키워드 개수는 필수입니다.")
-    @Min(value = 3, message = "키워드 개수는 최소 3개입니다.")
-    @Max(value = 6, message = "키워드 개수는 최대 6개입니다.")
-    private Integer preferredKeywordCount;
-
-    @Email(message = "부모님 이메일 형식이 올바르지 않습니다.")
-    private String parentEmail;
 }

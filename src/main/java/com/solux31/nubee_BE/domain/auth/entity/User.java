@@ -146,4 +146,9 @@ public class User {
     public void updateBirthDate(LocalDate birthDate) {
         this.birthDate = birthDate;
     }
+
+    public void updateParentInfo(String parentEmail) {
+        this.parentEmail = parentEmail;
+        this.isParentVerified = true;
+    }
 }
