@@ -72,39 +72,11 @@ public class AuthService {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
-        // 만 14세 미만 확인
-        int age = Period.between(request.getBirthDate(), LocalDate.now()).getYears();
-        boolean isUnder14 = age < 14;
-
-        // 만 14세 미만 처리
-        boolean isParentVerified = false;
-        if (isUnder14) {
-            if (request.getParentEmail() == null || request.getParentEmail().isBlank()) {
-                throw new IllegalArgumentException("만 14세 미만은 부모님 이메일 인증이 필요합니다.");
-            }
-
-            // 부모님 이메일 인증 완료 여부 확인
-            Optional<EmailVerification> parentVerification = emailVerificationRepository
-                    .findTopByEmailAndTypeAndIsVerifiedTrueOrderByCreatedAtDesc(
-                            request.getParentEmail(), EmailVerificationType.PARENT_VERIFY);
-            isParentVerified = parentVerification
-                    .filter(v -> v.getExpiresAt().isAfter(LocalDateTime.now()))
-                    .isPresent();
-
-            if (!isParentVerified) {
-                throw new IllegalArgumentException("부모님 이메일 인증이 완료되지 않았습니다.");
-            }
-        }
-
         // User 생성
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .birthDate(request.getBirthDate())
-                .preferredKeywordCount(request.getPreferredKeywordCount())
-                .parentEmail(isUnder14 ? request.getParentEmail() : null)
-                .isParentVerified(isParentVerified)
                 .status(UserStatus.ACTIVE)
                 .build();
 
@@ -414,7 +386,7 @@ public class AuthService {
 
     // 부모님 이메일 인증 확인
     @Transactional
-    public void verifyParentEmail(ParentEmailVerifyReqDTO request) {
+    public void verifyParentEmail(String email, ParentEmailVerifyReqDTO request) {
 
         EmailVerification verification = emailVerificationRepository
                 .findTopByEmailAndTypeOrderByCreatedAtDesc(
@@ -438,6 +410,11 @@ public class AuthService {
 
         // 인증 완료 처리
         verification.verify();
+
+        // User 테이블 업데이트 추가
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+        user.updateParentInfo(request.getParentEmail());
     }
 
     // 생년월일 저장

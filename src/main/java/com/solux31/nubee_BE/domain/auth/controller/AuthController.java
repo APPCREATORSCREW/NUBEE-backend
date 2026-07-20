@@ -117,10 +117,13 @@ public class AuthController {
     // 부모님 이메일 인증 확인
     @PostMapping("/parent/email/verify")
     @Operation(summary = "부모님 이메일 인증 확인", description = "부모님 이메일 인증 코드를 확인합니다.")
-    public ApiResponse<String> verifyParentEmail(@RequestBody @Valid ParentEmailVerifyReqDTO request) {
-        authService.verifyParentEmail(request);
+    public ApiResponse<String> verifyParentEmail(
+            @AuthenticationPrincipal AuthUser authUser,
+            @RequestBody @Valid ParentEmailVerifyReqDTO request) {
+        authService.verifyParentEmail(authUser.getUsername(), request);
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, "인증이 완료되었습니다.");
     }
+
 
     @Value("${front.url}")
     private String frontUrl;
