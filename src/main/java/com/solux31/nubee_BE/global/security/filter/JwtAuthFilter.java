@@ -61,7 +61,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 // 만 14세 미만 + 부모님 인증 미완료 차단 추가
                 if (userDetails instanceof AuthUser authUser) {
                     if (authUser.isUnder14() && !authUser.isParentVerified()) {
-                        String requestURI = request.getRequestURI();
+                        String requestURI = request.getServletPath();
                         if (!requestURI.startsWith("/auth/parent") &&
                                 !requestURI.startsWith("/auth/birthdate") &&
                                 !requestURI.startsWith("/auth/logout")) {

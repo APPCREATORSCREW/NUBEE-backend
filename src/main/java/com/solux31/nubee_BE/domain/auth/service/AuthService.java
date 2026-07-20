@@ -412,7 +412,7 @@ public class AuthService {
         verification.verify();
 
         // User 테이블 업데이트 추가
-        User user = userRepository.findByEmail(request.getUserEmail())
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
         user.updateParentInfo(request.getParentEmail());
     }
