@@ -12,7 +12,9 @@ import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
+import com.solux31.nubee_BE.domain.words.entity.mapping.UserKeyword;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
+import com.solux31.nubee_BE.domain.words.repository.UserKeywordRepository;
 import com.solux31.nubee_BE.domain.words.service.WordService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -39,6 +41,7 @@ public class NewsService {
     private final UserRepository userRepository;
     private final UserQuizLogRepository userQuizLogRepository;
     private final KeywordRepository keywordRepository;
+    private final UserKeywordRepository userKeywordRepository;
 
     private static final Long DEFAULT_KEYWORD_ID = 999L;
     private static final String DEFAULT_WORD_NAME = "알 수 없음";
@@ -516,5 +519,59 @@ public class NewsService {
             case "세계" -> "WORLD";
             default -> "GENERAL";
         };
+    }
+
+    @Transactional(readOnly = true)
+    public NewsResDTO getLearningResult(Long userId) {
+
+        // 1. 아이 이름 조회
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+
+        // 2. 오늘 키워드 퀴즈 로그 조회
+        List<UserQuizLog> keywordLogs = userQuizLogRepository
+                .findTodayLogsByUserIdAndQuizType(userId, "KEYWORD");
+
+        // 3. 키워드 퀴즈 로그에서 키워드 목록 + 뉴스 원문 링크 추출
+        List<NewsResDTO.KeywordInfo> keywordInfos = keywordLogs.stream()
+                .map(log -> {
+                    Quiz quiz = quizRepository.findById(log.getQuizId())
+                            .orElse(null);
+                    if (quiz == null || quiz.getKeyword() == null) return null;
+
+                    Keyword keyword = quiz.getKeyword();
+                    String originalUrl = keyword.getDailyNews() != null
+                            ? keyword.getDailyNews().getOriginalUrl()
+                            : null;
+
+                    return NewsResDTO.KeywordInfo.builder()
+                            .word(keyword.getWord())
+                            .originalUrl(originalUrl)
+                            .build();
+                })
+                .filter(info -> info != null)
+                .distinct()
+                .collect(Collectors.toList());
+
+        // 4. 키워드 퀴즈 정답률 계산
+        double keywordAccuracy = calculateAccuracy(keywordLogs);
+
+        // 5. 뉴스 퀴즈 정답률 계산
+        List<UserQuizLog> newsLogs = userQuizLogRepository
+                .findTodayLogsByUserIdAndQuizType(userId, "NEWS");
+        double newsAccuracy = calculateAccuracy(newsLogs);
+
+        return NewsResDTO.builder()
+                .username(user.getUsername())
+                .learnedKeywords(keywordInfos)
+                .keywordQuizAccuracy(keywordAccuracy)
+                .newsQuizAccuracy(newsAccuracy)
+                .build();
+    }
+
+    private double calculateAccuracy(List<UserQuizLog> logs) {
+        if (logs.isEmpty()) return 0.0;
+        long correctCount = logs.stream().filter(UserQuizLog::isCorrect).count();
+        return Math.round((double) correctCount / logs.size() * 100.0);
     }
 }
