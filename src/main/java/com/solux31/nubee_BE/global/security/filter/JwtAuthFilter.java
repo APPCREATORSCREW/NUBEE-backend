@@ -1,5 +1,6 @@
 package com.solux31.nubee_BE.global.security.filter;
 
+import com.solux31.nubee_BE.global.security.entity.AuthUser;
 import com.solux31.nubee_BE.global.security.service.CustomUserDetailsService;
 import com.solux31.nubee_BE.global.security.util.JwtUtil;
 import com.solux31.nubee_BE.global.security.util.SecurityResponseUtil;
@@ -57,10 +58,25 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     return;
                 }
 
+                // 만 14세 미만 + 부모님 인증 미완료 차단 추가
+                if (userDetails instanceof AuthUser authUser) {
+                    if (authUser.isUnder14() && !authUser.isParentVerified()) {
+                        String requestURI = request.getRequestURI();
+                        if (!requestURI.startsWith("/auth/parent") &&
+                                !requestURI.startsWith("/auth/birthdate") &&
+                                !requestURI.startsWith("/auth/logout")) {
+                            SecurityResponseUtil.writeErrorResponse(response,
+                                    HttpServletResponse.SC_FORBIDDEN,
+                                    "COMMON403_1",
+                                    "부모님 이메일 인증이 필요합니다.");
+                            return;
+                        }
+                    }
+                }
+
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
                 SecurityContextHolder.getContext().setAuthentication(authToken);
 
             } catch (UsernameNotFoundException e) {

@@ -386,7 +386,7 @@ public class AuthService {
 
     // 부모님 이메일 인증 확인
     @Transactional
-    public void verifyParentEmail(ParentEmailVerifyReqDTO request) {
+    public void verifyParentEmail(String email, ParentEmailVerifyReqDTO request) {
 
         EmailVerification verification = emailVerificationRepository
                 .findTopByEmailAndTypeOrderByCreatedAtDesc(
