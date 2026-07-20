@@ -2,6 +2,8 @@ package com.solux31.nubee_BE.domain.news.controller;
 
 import com.solux31.nubee_BE.domain.news.dto.*;
 import com.solux31.nubee_BE.domain.news.service.NewsService;
+import com.solux31.nubee_BE.global.apiPayload.ApiResponse;
+import com.solux31.nubee_BE.global.apiPayload.code.GeneralSuccessCode;
 import com.solux31.nubee_BE.global.security.entity.AuthUser; // AuthUser 임포트 추가
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -128,5 +130,12 @@ public class NewsController {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("파이프라인 구동 중 실패: " + e.getMessage());
         }
+    }
+
+    @GetMapping("/send")
+    @Operation(summary = "부모님께 학습 결과 전송", description = "오늘의 학습 데이터를 조회합니다.")
+    public ApiResponse<NewsResDTO> getLearningResult(@AuthenticationPrincipal AuthUser authUser) {
+        return ApiResponse.onSuccess(GeneralSuccessCode.OK,
+                newsService.getLearningResult(authUser.getUserId()));
     }
 }

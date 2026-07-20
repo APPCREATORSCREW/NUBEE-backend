@@ -1,6 +1,5 @@
 package com.solux31.nubee_BE.domain.words.repository;
 
-import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.entity.mapping.UserKeyword;
 import java.util.List;
 import java.util.Optional;
