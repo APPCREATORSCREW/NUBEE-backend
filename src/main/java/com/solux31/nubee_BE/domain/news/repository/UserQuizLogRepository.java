@@ -30,4 +30,16 @@ public interface UserQuizLogRepository extends JpaRepository<UserQuizLog, Long> 
             "GROUP BY uql.category " +
             "ORDER BY COUNT(uql.id) ASC")
     List<String> findLeastSolvedCategories(@Param("userId") Long userId, Pageable pageable);
+
+    // 오늘 날짜 기준 특정 quiz_type 정답률 계산용 및 KEYWORD 타입 퀴즈 로그 조회
+    @Query("SELECT uql FROM UserQuizLog uql " +
+            "JOIN Quiz q ON uql.quizId = q.id " +
+            "WHERE uql.userId = :userId " +
+            "AND q.quizType = :quizType " +
+            "AND DATE(uql.createdAt) = CURRENT_DATE")
+    List<UserQuizLog> findTodayLogsByUserIdAndQuizType(
+            @Param("userId") Long userId,
+            @Param("quizType") String quizType);
+
+
 }
