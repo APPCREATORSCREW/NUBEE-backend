@@ -3,7 +3,7 @@ package com.solux31.nubee_BE.domain.words.service;
 import com.solux31.nubee_BE.domain.news.dto.NewsAnalysisResult;
 import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
-import com.solux31.nubee_BE.domain.words.dto.KeywordDetailResponse;
+import com.solux31.nubee_BE.domain.words.dto.Response.KeywordDetailResDTO;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
 import lombok.RequiredArgsConstructor;
@@ -89,7 +89,7 @@ public class WordService {
     }
 
     @Transactional(readOnly = true)
-    public KeywordDetailResponse getKeywordDetail(Long keywordId) {
+    public KeywordDetailResDTO getKeywordDetail(Long keywordId) {
         Keyword keyword = keywordRepository.findById(keywordId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 키워드 ID"));
 
@@ -106,7 +106,7 @@ public class WordService {
             }
         }
 
-        return new KeywordDetailResponse(
+        return new KeywordDetailResDTO(
                 keyword.getId(),
                 keyword.getWord(),
                 keyword.getExplanation(),

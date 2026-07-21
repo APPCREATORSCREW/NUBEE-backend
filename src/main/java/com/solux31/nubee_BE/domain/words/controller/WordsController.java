@@ -1,11 +1,11 @@
 package com.solux31.nubee_BE.domain.words.controller;
 
-import com.solux31.nubee_BE.domain.news.dto.QuizResponse;
-import com.solux31.nubee_BE.domain.news.dto.QuizSubmitRequest;
-import com.solux31.nubee_BE.domain.news.dto.QuizSubmitResponse;
-import com.solux31.nubee_BE.domain.news.dto.TodayNewsResponse;
+import com.solux31.nubee_BE.domain.news.dto.Response.QuizResDTO;
+import com.solux31.nubee_BE.domain.news.dto.Request.QuizSubmitReqDTO;
+import com.solux31.nubee_BE.domain.news.dto.Response.QuizSubmitResDTO;
+import com.solux31.nubee_BE.domain.news.dto.Response.TodayNewsResDTO;
 import com.solux31.nubee_BE.domain.news.service.NewsService;
-import com.solux31.nubee_BE.domain.words.dto.KeywordDetailResponse;
+import com.solux31.nubee_BE.domain.words.dto.Response.KeywordDetailResDTO;
 import com.solux31.nubee_BE.domain.words.service.WordService;
 import com.solux31.nubee_BE.global.security.entity.AuthUser;
 import io.swagger.v3.oas.annotations.Operation;
@@ -46,7 +46,7 @@ public class WordsController {
             @AuthenticationPrincipal AuthUser authUser
     ) {
         try {
-            TodayNewsResponse responseData = newsService.getBalancedTodayNewsForUser(authUser.getUserId());
+            TodayNewsResDTO responseData = newsService.getBalancedTodayNewsForUser(authUser.getUserId());
 
             if (responseData.getNews_list().isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -82,7 +82,7 @@ public class WordsController {
         }
 
         try {
-            KeywordDetailResponse responseData = wordService.getKeywordDetail(keywordId);
+            KeywordDetailResDTO responseData = wordService.getKeywordDetail(keywordId);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "SUCCESS");
@@ -112,7 +112,7 @@ public class WordsController {
         }
 
         try {
-            QuizResponse responseData = newsService.getKeywordQuizByKeywordId(keywordId);
+            QuizResDTO responseData = newsService.getKeywordQuizByKeywordId(keywordId);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "SUCCESS");
@@ -136,14 +136,14 @@ public class WordsController {
     public ResponseEntity<?> submitKeywordQuiz(
             @PathVariable("keyword_id") Long keywordId,
             @AuthenticationPrincipal AuthUser authUser,
-            @RequestBody QuizSubmitRequest request
+            @RequestBody QuizSubmitReqDTO request
     ) {
         if (keywordId == null || request.getQuiz_id() == null || request.getSelected_answer() <= 0) {
             return ResponseEntity.badRequest().body(createErrorResponse("필수 입력값 누락 (quiz_id, selected_answer)"));
         }
 
         try {
-            QuizSubmitResponse responseData = newsService.submitAndGradeKeywordQuiz(authUser.getUserId(), keywordId, request);
+            QuizSubmitResDTO responseData = newsService.submitAndGradeKeywordQuiz(authUser.getUserId(), keywordId, request);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "SUCCESS");

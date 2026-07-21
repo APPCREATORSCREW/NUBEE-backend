@@ -1,11 +1,11 @@
-package com.solux31.nubee_BE.domain.news.dto;
+package com.solux31.nubee_BE.domain.news.dto.Response;
 
 import lombok.Getter;
 import lombok.Setter;
 import java.util.List;
 
 @Getter @Setter
-public class GeminiResponse {
+public class GeminiResDTO {
 
     private List<Choice> choices;
 

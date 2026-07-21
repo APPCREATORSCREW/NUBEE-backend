@@ -1,7 +1,7 @@
 package com.solux31.nubee_BE.domain.news.service;
 
-import com.solux31.nubee_BE.domain.news.dto.GeminiRequest;
-import com.solux31.nubee_BE.domain.news.dto.GeminiResponse;
+import com.solux31.nubee_BE.domain.news.dto.Request.GeminiReqDTO;
+import com.solux31.nubee_BE.domain.news.dto.Response.GeminiResDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -31,7 +31,7 @@ public class GeminiService {
         String requestUrl = apiUrl;
 
         // 2. 하드코딩 대신 yml의 모델명(gemini-1.5-flash) 주입하여 요청 객체 생성
-        GeminiRequest request = new GeminiRequest(modelName, prompt);
+        GeminiReqDTO request = new GeminiReqDTO(modelName, prompt);
 
         // 3. HTTP Header 설정
         HttpHeaders headers = new HttpHeaders();
@@ -40,11 +40,11 @@ public class GeminiService {
         // 3. OpenAI 스타일의 Bearer 토큰 인증 헤더 주입!
         headers.set("Authorization", "Bearer " + apiKey);
 
-        HttpEntity<GeminiRequest> entity = new HttpEntity<>(request, headers);
+        HttpEntity<GeminiReqDTO> entity = new HttpEntity<>(request, headers);
 
         try {
             // 4. 게이트웨이 엔드포인트로 POST 요청 송신
-            GeminiResponse response = restTemplate.postForObject(requestUrl, entity, GeminiResponse.class);
+            GeminiResDTO response = restTemplate.postForObject(requestUrl, entity, GeminiResDTO.class);
 
             if (response != null) {
                 return response.getAnswerText();

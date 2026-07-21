@@ -1,6 +1,6 @@
 package com.solux31.nubee_BE.domain.news.controller;
 
-import com.solux31.nubee_BE.domain.news.dto.NaverNewsResponse;
+import com.solux31.nubee_BE.domain.news.dto.Response.NaverNewsResDTO;
 import com.solux31.nubee_BE.domain.news.service.NewsApiService;
 import com.solux31.nubee_BE.domain.news.service.NewsService; // 추가된 서비스
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,8 +24,8 @@ public class NewsTestController {
 
     @Operation(summary = "네이버 뉴스 4개 카테고리 x 2개씩 총 8개 불러오기 (수집 테스트)")
     @GetMapping("/naver-eight")
-    public List<NaverNewsResponse.NaverNewsItem> testFetchAllCategories() {
-        List<NaverNewsResponse.NaverNewsItem> totalNewsList = new ArrayList<>();
+    public List<NaverNewsResDTO.NaverNewsItem> testFetchAllCategories() {
+        List<NaverNewsResDTO.NaverNewsItem> totalNewsList = new ArrayList<>();
 
         totalNewsList.addAll(newsApiService.fetchNewsByCategory("101", 2)); // 사회
         totalNewsList.addAll(newsApiService.fetchNewsByCategory("102", 2)); // 과학

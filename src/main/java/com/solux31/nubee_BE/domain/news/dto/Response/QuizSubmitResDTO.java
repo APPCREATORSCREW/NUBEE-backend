@@ -1,4 +1,4 @@
-package com.solux31.nubee_BE.domain.news.dto;
+package com.solux31.nubee_BE.domain.news.dto.Response;
 
 import com.fasterxml.jackson.annotation.JsonInclude; // 💡 중요: null인 필드는 JSON 결과에서 자동으로 쏙 빼주는 마법의 어노테이션!
 import lombok.AllArgsConstructor;
@@ -11,7 +11,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL) // 값이 null인 필드는 JSON 변환 시 화면에 출력하지 않음
-public class QuizSubmitResponse {
+public class QuizSubmitResDTO {
     private Long quiz_id;
     private int selected_answer;
     private boolean is_correct;

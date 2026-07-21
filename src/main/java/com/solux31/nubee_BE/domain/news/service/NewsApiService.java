@@ -1,6 +1,6 @@
 package com.solux31.nubee_BE.domain.news.service;
 
-import com.solux31.nubee_BE.domain.news.dto.NaverNewsResponse;
+import com.solux31.nubee_BE.domain.news.dto.Response.NaverNewsResDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -26,7 +26,7 @@ public class NewsApiService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     //특정 카테고리 키워드로 최신 뉴스 2개를 긁어오는 메서드
-    public List<NaverNewsResponse.NaverNewsItem> fetchNewsByCategory(String categoryCode, int displayCount) {
+    public List<NaverNewsResDTO.NaverNewsItem> fetchNewsByCategory(String categoryCode, int displayCount) {
         // 1. 네이버 API는 헤더에 ID와 Secret을 요구
         HttpHeaders headers = new HttpHeaders();
         headers.set("X-Naver-Client-Id", clientId);
@@ -53,8 +53,8 @@ public class NewsApiService {
                 .toUri();
 
         try {
-            ResponseEntity<NaverNewsResponse> response = restTemplate.exchange(
-                    targetUri, HttpMethod.GET, entity, NaverNewsResponse.class);
+            ResponseEntity<NaverNewsResDTO> response = restTemplate.exchange(
+                    targetUri, HttpMethod.GET, entity, NaverNewsResDTO.class);
 
             if (response.getBody() != null) {
                 return response.getBody().getItems();

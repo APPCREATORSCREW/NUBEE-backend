@@ -1,6 +1,10 @@
 package com.solux31.nubee_BE.domain.news.controller;
 
-import com.solux31.nubee_BE.domain.news.dto.*;
+import com.solux31.nubee_BE.domain.news.dto.Request.QuizSubmitReqDTO;
+import com.solux31.nubee_BE.domain.news.dto.Response.NewsDetailResDTO;
+import com.solux31.nubee_BE.domain.news.dto.Response.NewsResDTO;
+import com.solux31.nubee_BE.domain.news.dto.Response.QuizResDTO;
+import com.solux31.nubee_BE.domain.news.dto.Response.QuizSubmitResDTO;
 import com.solux31.nubee_BE.domain.news.service.NewsService;
 import com.solux31.nubee_BE.global.apiPayload.ApiResponse;
 import com.solux31.nubee_BE.global.apiPayload.code.GeneralSuccessCode;
@@ -35,7 +39,7 @@ public class NewsController {
             @PathVariable("news_id") Long newsId
     ) {
         try {
-            NewsDetailResponse responseData = newsService.getNewsDetailWithKeywords(newsId);
+            NewsDetailResDTO responseData = newsService.getNewsDetailWithKeywords(newsId);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "SUCCESS");
@@ -62,7 +66,7 @@ public class NewsController {
             @PathVariable("news_id") Long newsId
     ) {
         try {
-            QuizResponse responseData = newsService.getNewsQuizByNewsId(newsId);
+            QuizResDTO responseData = newsService.getNewsQuizByNewsId(newsId);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "SUCCESS");
@@ -88,7 +92,7 @@ public class NewsController {
     public ResponseEntity<?> submitNewsQuiz(
             @PathVariable("news_id") Long newsId,
             @AuthenticationPrincipal AuthUser authUser, // 💡 하드코딩 1L 걷어내고 실제 유저 주입!
-            @RequestBody QuizSubmitRequest request
+            @RequestBody QuizSubmitReqDTO request
     ) {
         if (request.getQuiz_id() == null || request.getSelected_answer() <= 0) {
             return ResponseEntity.badRequest().body("필수 입력값 누락 (quiz_id, selected_answer)");
@@ -96,7 +100,7 @@ public class NewsController {
 
         try {
             // 하드코딩 대신 authUser.getUserId() 반영
-            QuizSubmitResponse responseData = newsService.submitAndGradeNewsQuiz(authUser.getUserId(), newsId, request);
+            QuizSubmitResDTO responseData = newsService.submitAndGradeNewsQuiz(authUser.getUserId(), newsId, request);
 
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("status", "SUCCESS");

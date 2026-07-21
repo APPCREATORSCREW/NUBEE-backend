@@ -1,4 +1,4 @@
-package com.solux31.nubee_BE.domain.news.dto;
+package com.solux31.nubee_BE.domain.news.dto.Response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

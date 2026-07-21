@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.news.dto.*;
+import com.solux31.nubee_BE.domain.news.dto.Request.QuizSubmitReqDTO;
+import com.solux31.nubee_BE.domain.news.dto.Response.*;
 import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import com.solux31.nubee_BE.domain.news.entity.Quiz;
-import com.solux31.nubee_BE.domain.news.entity.UserQuizLog;
+import com.solux31.nubee_BE.domain.news.entity.mapping.UserQuizLog;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
@@ -52,14 +54,14 @@ public class NewsService {
 
         for (String categoryId : categories) {
             String categoryName = convertCategoryName(categoryId);
-            List<NaverNewsResponse.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 4);
+            List<NaverNewsResDTO.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 4);
 
             if (naverNewsList == null || naverNewsList.isEmpty()) {
                 continue;
             }
 
             int savedCount = 0;
-            for (NaverNewsResponse.NaverNewsItem naverNews : naverNewsList) {
+            for (NaverNewsResDTO.NaverNewsItem naverNews : naverNewsList) {
                 if (savedCount >= 1) break;
 
                 // 1. 기사 중복 필터링
@@ -259,7 +261,7 @@ public class NewsService {
     }
 
     @Transactional(readOnly = true)
-    public TodayNewsResponse getBalancedTodayNewsForUser(Long userId) {
+    public TodayNewsResDTO getBalancedTodayNewsForUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
@@ -273,7 +275,7 @@ public class NewsService {
         List<DailyNews> allTodayNews = dailyNewsRepository.findByCreatedAtBetween(startOfToday, endOfToday);
 
         if (allTodayNews == null || allTodayNews.isEmpty()) {
-            return new TodayNewsResponse(0, new ArrayList<>());
+            return new TodayNewsResDTO(0, new ArrayList<>());
         }
 
         // 1. 시스템에서 다루는 4대 뉴스 카테고리 기준선 정의
@@ -308,7 +310,7 @@ public class NewsService {
         int targetSize = Math.min(userPreferredCount, priorityFilteredList.size());
         List<DailyNews> selectedNews = priorityFilteredList.subList(0, targetSize);
 
-        List<TodayNewsResponse.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
+        List<TodayNewsResDTO.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
             Keyword realKeyword = news.getRelatedKeywords().isEmpty() ? null : news.getRelatedKeywords().get(0);
 
             Long keywordId = (realKeyword != null) ? realKeyword.getId() : DEFAULT_KEYWORD_ID;
@@ -318,11 +320,11 @@ public class NewsService {
                     ? realKeyword.getExampleSentence()
                     : DEFAULT_EXAMPLE;
 
-            TodayNewsResponse.MainKeywordDto keywordDto = new TodayNewsResponse.MainKeywordDto(
+            TodayNewsResDTO.MainKeywordDto keywordDto = new TodayNewsResDTO.MainKeywordDto(
                     keywordId, wordName, explanation, exampleSentence, "MAIN"
             );
 
-            return new TodayNewsResponse.NewsDto(
+            return new TodayNewsResDTO.NewsDto(
                     news.getId(),
                     convertToEngCategory(news.getCategory()),
                     news.getTitle(),
@@ -332,38 +334,38 @@ public class NewsService {
             );
         }).toList();
 
-        return new TodayNewsResponse(newsDtoList.size(), newsDtoList);
+        return new TodayNewsResDTO(newsDtoList.size(), newsDtoList);
     }
 
     @Transactional(readOnly = true)
-    public QuizResponse getNewsQuizByNewsId(Long newsId) {
+    public QuizResDTO getNewsQuizByNewsId(Long newsId) {
         Quiz quiz = quizRepository.findByDailyNewsIdAndQuizType(newsId, "NEWS")
                 .orElseThrow(() -> new IllegalArgumentException("해당 뉴스 퀴즈 존재하지 않음"));
         return convertToQuizResponse(quiz, false);
     }
 
-    private QuizResponse convertToQuizResponse(Quiz quiz, boolean includeKeywordId) {
-        List<QuizResponse.OptionDto> parsedOptions = new ArrayList<>();
+    private QuizResDTO convertToQuizResponse(Quiz quiz, boolean includeKeywordId) {
+        List<QuizResDTO.OptionDto> parsedOptions = new ArrayList<>();
 
         try {
             List<String> rawOptions = objectMapper.readValue(quiz.getOptionsJson(), new TypeReference<List<String>>() {});
             for (int i = 0; i < rawOptions.size(); i++) {
-                parsedOptions.add(new QuizResponse.OptionDto(i + 1, rawOptions.get(i)));
+                parsedOptions.add(new QuizResDTO.OptionDto(i + 1, rawOptions.get(i)));
             }
         } catch (Exception e) {
             System.err.println("🚨 [데이터 에러] Quiz ID " + quiz.getId() + "의 optionsJson 파싱 실패. 더미 선지로 대체합니다.");
             parsedOptions = List.of(
-                    new QuizResponse.OptionDto(1, "데이터를 불러오는 중입니다."),
-                    new QuizResponse.OptionDto(2, "데이터를 불러오는 중입니다."),
-                    new QuizResponse.OptionDto(3, "데이터를 불러오는 중입니다."),
-                    new QuizResponse.OptionDto(4, "데이터를 불러오는 중입니다.")
+                    new QuizResDTO.OptionDto(1, "데이터를 불러오는 중입니다."),
+                    new QuizResDTO.OptionDto(2, "데이터를 불러오는 중입니다."),
+                    new QuizResDTO.OptionDto(3, "데이터를 불러오는 중입니다."),
+                    new QuizResDTO.OptionDto(4, "데이터를 불러오는 중입니다.")
             );
         }
 
         Long extractedNewsId = (quiz.getDailyNews() != null) ? quiz.getDailyNews().getId() : null;
         Long extractedKeywordId = (quiz.getKeyword() != null) ? quiz.getKeyword().getId() : null;
 
-        return new QuizResponse(
+        return new QuizResDTO(
                 quiz.getId(),
                 extractedNewsId,
                 includeKeywordId ? extractedKeywordId : null,
@@ -374,7 +376,7 @@ public class NewsService {
     }
 
     @Transactional
-    public QuizSubmitResponse submitAndGradeKeywordQuiz(Long userId, Long keywordId, QuizSubmitRequest request) {
+    public QuizSubmitResDTO submitAndGradeKeywordQuiz(Long userId, Long keywordId, QuizSubmitReqDTO request) {
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
 
@@ -400,22 +402,22 @@ public class NewsService {
             userQuizLogRepository.save(quizLog);
         }
 
-        QuizSubmitResponse.PointResultDto pointResult = new QuizSubmitResponse.PointResultDto(
+        QuizSubmitResDTO.PointResultDto pointResult = new QuizSubmitResDTO.PointResultDto(
                 earnedPoint, user.getPoint()
         );
 
-        QuizSubmitResponse.LearningResultDto learningResult = new QuizSubmitResponse.LearningResultDto(
+        QuizSubmitResDTO.LearningResultDto learningResult = new QuizSubmitResDTO.LearningResultDto(
                 earnedPoint, user.getPoint(), true
         );
 
-        return new QuizSubmitResponse(
+        return new QuizSubmitResDTO(
                 quiz.getId(), request.getSelected_answer(), isCorrect, quiz.getAnswer(),
                 quiz.getExplanation(), pointResult, learningResult
         );
     }
 
     @Transactional
-    public QuizSubmitResponse submitAndGradeNewsQuiz(Long userId, Long newsId, QuizSubmitRequest request) {
+    public QuizSubmitResDTO submitAndGradeNewsQuiz(Long userId, Long newsId, QuizSubmitReqDTO request) {
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
 
@@ -446,40 +448,40 @@ public class NewsService {
             userQuizLogRepository.save(quizLog);
         }
 
-        QuizSubmitResponse.PointResultDto pointResult = new QuizSubmitResponse.PointResultDto(
+        QuizSubmitResDTO.PointResultDto pointResult = new QuizSubmitResDTO.PointResultDto(
                 earnedPoint, user.getPoint()
         );
 
-        QuizSubmitResponse.LearningResultDto learningResult = new QuizSubmitResponse.LearningResultDto(
+        QuizSubmitResDTO.LearningResultDto learningResult = new QuizSubmitResDTO.LearningResultDto(
                 earnedPoint, user.getPoint(), true
         );
 
-        return new QuizSubmitResponse(
+        return new QuizSubmitResDTO(
                 quiz.getId(), request.getSelected_answer(), isCorrect, quiz.getAnswer(),
                 quiz.getExplanation(), pointResult, learningResult
         );
     }
 
     @Transactional(readOnly = true)
-    public QuizResponse getKeywordQuizByKeywordId(Long keywordId) {
+    public QuizResDTO getKeywordQuizByKeywordId(Long keywordId) {
         Quiz quiz = quizRepository.findByKeyword_IdAndQuizType(keywordId, "KEYWORD")
                 .orElseThrow(() -> new IllegalArgumentException("해당 키워드 퀴즈가 존재하지 않습니다."));
         return convertToQuizResponse(quiz, true);
     }
 
     @Transactional(readOnly = true)
-    public NewsDetailResponse getNewsDetailWithKeywords(Long newsId) {
+    public NewsDetailResDTO getNewsDetailWithKeywords(Long newsId) {
         DailyNews news = dailyNewsRepository.findById(newsId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 뉴스 기사 ID"));
 
         List<Keyword> keywordList = keywordRepository.findByDailyNewsId(newsId);
 
-        List<NewsDetailResponse.RelatedKeywordDto> relatedKeywords = keywordList.stream()
-                .map(k -> new NewsDetailResponse.RelatedKeywordDto(
+        List<NewsDetailResDTO.RelatedKeywordDto> relatedKeywords = keywordList.stream()
+                .map(k -> new NewsDetailResDTO.RelatedKeywordDto(
                         k.getId(), k.getWord(), k.getKeywordType(), k.getExplanation()
                 )).toList();
 
-        return new NewsDetailResponse(
+        return new NewsDetailResDTO(
                 news.getId(), convertToEngCategory(news.getCategory()), news.getTitle(), news.getSummary(),
                 news.getImageUrl() != null ? news.getImageUrl() : "기본이미지URL",
                 news.getOriginalUrl() != null ? news.getOriginalUrl() : "원문출처없음",

@@ -1,8 +1,8 @@
 package com.solux31.nubee_BE.domain.news.service;
 
-import com.solux31.nubee_BE.domain.news.dto.QuizSubmitRequest;
+import com.solux31.nubee_BE.domain.news.dto.Request.QuizSubmitReqDTO;
 import com.solux31.nubee_BE.domain.news.entity.Quiz;
-import com.solux31.nubee_BE.domain.news.entity.UserQuizLog;
+import com.solux31.nubee_BE.domain.news.entity.mapping.UserQuizLog;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
 import com.solux31.nubee_BE.domain.auth.entity.User; // 유저 엔티티 임포트
@@ -24,7 +24,7 @@ public class UserQuizLogService {
      * 사용자가 제출한 퀴즈 답안을 채점하고 로그 저장 및 포인트 지급
      */
     @Transactional // 쓰기 작업이 포함되므로 @Transactional 적용
-    public boolean submitQuizAnswer(Long userId, QuizSubmitRequest request) {
+    public boolean submitQuizAnswer(Long userId, QuizSubmitReqDTO request) {
 
         // 1. 중복 체크
         if (userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id())) {
