@@ -85,7 +85,6 @@ public class WordService {
                     .dailyNews(proxyNews)    // 연관된 뉴스 외래키 ID
                     .build();
 
-            newKeyword.setDailyNews(proxyNews);
             keywordRepository.save(newKeyword);
         }
     }

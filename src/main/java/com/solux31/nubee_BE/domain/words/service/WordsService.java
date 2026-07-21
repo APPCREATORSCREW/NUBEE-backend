@@ -3,9 +3,13 @@ package com.solux31.nubee_BE.domain.words.service;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.news.dto.NewsAnalysisResult;
+import com.solux31.nubee_BE.domain.news.exception.NewsException;
+import com.solux31.nubee_BE.domain.news.exception.code.NewsErrorCode;
 import com.solux31.nubee_BE.domain.words.dto.Response.WordsResDTO;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.entity.mapping.UserKeyword;
+import com.solux31.nubee_BE.domain.words.exception.WordsException;
+import com.solux31.nubee_BE.domain.words.exception.code.WordsErrorCode;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
 import com.solux31.nubee_BE.domain.words.repository.UserKeywordRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,7 +46,7 @@ public class WordsService {
     @Transactional
     public void deleteWord(Long wordId, Long userId) {
         UserKeyword userKeyword = userKeywordRepository.findByIdAndUserId(wordId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 단어입니다."));
+                .orElseThrow(() -> new WordsException(WordsErrorCode.KEYWORD_NOT_FOUND));
         userKeywordRepository.delete(userKeyword);
     }
 

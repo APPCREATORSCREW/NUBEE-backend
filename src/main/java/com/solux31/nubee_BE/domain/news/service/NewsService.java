@@ -16,6 +16,8 @@ import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
+import com.solux31.nubee_BE.domain.words.exception.WordsException;
+import com.solux31.nubee_BE.domain.words.exception.code.WordsErrorCode;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
 import com.solux31.nubee_BE.domain.words.service.WordService;
 import lombok.RequiredArgsConstructor;
@@ -86,14 +88,14 @@ public class NewsService {
 
                         // 2. 방금 생성된 기사 엔티티 역추적
                         DailyNews currentNews = dailyNewsRepository.findByOriginalUrl(naverNews.getLink())
-                                .orElseThrow(() -> new IllegalStateException("방금 저장된 기사를 찾을 수 없습니다."));
+                                .orElseThrow(() -> new NewsException(NewsErrorCode.NEWS_NOT_FOUND));
 
                         // 3. 중복 키워드 분기 처리
                         if (keywordRepository.existsByWord(mainKeyword)) {
                             System.out.println("⚠️ 기존 마스터 키워드 발견 [" + mainKeyword + "] -> 현재 기사와 연동 및 퀴즈 추가 프로세스 진행");
 
                             Keyword existingKeyword = keywordRepository.findFirstByWord(mainKeyword)
-                                    .orElseThrow(() -> new IllegalStateException("존재한다고 했으나 조회에 실패했습니다."));
+                                    .orElseThrow(() -> new WordsException(WordsErrorCode.KEYWORD_NOT_FOUND));
 
                             reuseExistQuizForKeyword(existingKeyword, currentNews, categoryName);
                         } else {
@@ -161,7 +163,7 @@ public class NewsService {
         List<MainKeywordResult> masterResults = generateMasterKeywordsAndQuizzes(mainKeyword);
 
         if (masterResults == null || masterResults.isEmpty()) {
-            throw new IllegalArgumentException("Gemini 분석 결과가 비어있어 데이터를 적재할 수 없습니다.");
+            throw new WordsException(WordsErrorCode.GEMINI_EMPTY_RESULT);
         }
 
         for (MainKeywordResult master : masterResults) {
@@ -173,9 +175,14 @@ public class NewsService {
                     newsId
             );
 
+            if (savedKeywordId == null) {
+                System.err.println("⚠️ 마스터 키워드 업데이트 실패 (단어를 찾을 수 없음): " + master.getKeyword() + " (newsId: " + newsId + ")");
+                throw new WordsException(WordsErrorCode.KEYWORD_NOT_FOUND);
+            }
+
             try {
                 Keyword keywordEntity = keywordRepository.findById(savedKeywordId)
-                        .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 키워드 ID입니다."));
+                        .orElseThrow(() -> new WordsException(WordsErrorCode.KEYWORD_NOT_FOUND));
 
                 DailyNews newsEntity = (newsId != null) ? dailyNewsRepository.findById(newsId).orElse(null) : null;
 
@@ -193,7 +200,7 @@ public class NewsService {
                 quizRepository.save(keywordQuiz);
             } catch (Exception e) {
                 System.err.println("키워드 마스터 퀴즈 DB 저장 중 오류 발생");
-                throw new RuntimeException("마스터 퀴즈 영속화 실패로 인해 저장을 중단해.", e);
+                throw new WordsException(WordsErrorCode.GEMINI_EMPTY_RESULT);
             }
         }
     }
@@ -274,7 +281,7 @@ public class NewsService {
     @Transactional(readOnly = true)
     public TodayNewsResDTO getBalancedTodayNewsForUser(Long userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new NewsException(NewsErrorCode.INVALID_USER_INFO));
 
         int userPreferredCount = user.getPreferredKeywordCount();
         if (userPreferredCount < 3 || userPreferredCount > 6) {
@@ -368,10 +375,10 @@ public class NewsService {
     @Transactional
     public QuizSubmitResDTO submitAndGradeKeywordQuiz(Long userId, Long keywordId, QuizSubmitReqDTO request) {
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
+                .orElseThrow(() -> new WordsException(WordsErrorCode.KEYWORD_QUIZ_NOT_FOUND));
 
         if (quiz.getKeyword() == null || !quiz.getKeyword().getId().equals(keywordId)) {
-                   throw new IllegalArgumentException("해당 퀴즈는 지정된 키워드에 속하지 않은 퀴즈입니다.");
+                   throw new WordsException(WordsErrorCode.INVALID_QUIZ_REQUEST);
         }
 
         boolean alreadySolved = userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id());
@@ -379,7 +386,7 @@ public class NewsService {
 
         int earnedPoint = 0;
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new NewsException(NewsErrorCode.INVALID_USER_INFO));
 
         if (!alreadySolved) {
             boolean isTodayQuiz = quiz.getCreatedAt() != null
@@ -420,14 +427,14 @@ public class NewsService {
     @Transactional
     public QuizSubmitResDTO submitAndGradeNewsQuiz(Long userId, Long newsId, QuizSubmitReqDTO request) {
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
+                .orElseThrow(() -> new NewsException(NewsErrorCode.NEWS_QUIZ_NOT_FOUND));
 
         if (quiz.getDailyNews() == null || !quiz.getDailyNews().getId().equals(newsId)) {
-            throw new IllegalArgumentException("해당 퀴즈는 지정된 뉴스 기사에 속하지 않은 퀴즈입니다.");
+            throw new NewsException(NewsErrorCode.INVALID_QUIZ_REQUEST);
         }
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new NewsException(NewsErrorCode.INVALID_USER_INFO));
 
         boolean alreadySolved = userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id());
         boolean isCorrect = Objects.equals(quiz.getAnswer(), request.getSelected_answer());
@@ -473,7 +480,7 @@ public class NewsService {
     @Transactional(readOnly = true)
     public QuizResDTO getKeywordQuizByKeywordId(Long keywordId) {
         Quiz quiz = quizRepository.findByKeyword_IdAndQuizType(keywordId, "KEYWORD")
-                .orElseThrow(() -> new IllegalArgumentException("해당 키워드 퀴즈가 존재하지 않습니다."));
+                .orElseThrow(() -> new WordsException(WordsErrorCode.KEYWORD_QUIZ_NOT_FOUND));
         return convertToQuizResponse(quiz, true);
     }
 
@@ -567,9 +574,9 @@ public class NewsService {
     @Transactional(readOnly = true)
     public NewsResDTO getLearningResult(Long userId) {
 
-        // 1. 아이 이름 조회
+        // 1. 유저 이름 조회
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new NewsException(NewsErrorCode.INVALID_USER_INFO));
 
         // 2. 오늘 키워드 퀴즈 로그 조회
         List<UserQuizLog> keywordLogs = userQuizLogRepository
