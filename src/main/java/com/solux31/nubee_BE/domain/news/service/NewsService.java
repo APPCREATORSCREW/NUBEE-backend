@@ -90,7 +90,7 @@ public class NewsService {
                         if (keywordRepository.existsByWord(mainKeyword)) {
                             System.out.println("⚠️ 기존 마스터 키워드 발견 [" + mainKeyword + "] -> 현재 기사와 연동 및 퀴즈 추가 프로세스 진행");
 
-                            Keyword existingKeyword = keywordRepository.findByWord(mainKeyword)
+                            Keyword existingKeyword = keywordRepository.findFirstByWord(mainKeyword)
                                     .orElseThrow(() -> new IllegalStateException("존재한다고 했으나 조회에 실패했습니다."));
 
                             reuseExistQuizForKeyword(existingKeyword, currentNews, categoryName);
