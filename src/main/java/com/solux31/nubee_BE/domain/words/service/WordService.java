@@ -5,6 +5,8 @@ import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.words.dto.Response.KeywordDetailResDTO;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
+import com.solux31.nubee_BE.domain.words.exception.WordsException;
+import com.solux31.nubee_BE.domain.words.exception.code.WordsErrorCode;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -91,7 +93,7 @@ public class WordService {
     @Transactional(readOnly = true)
     public KeywordDetailResDTO getKeywordDetail(Long keywordId) {
         Keyword keyword = keywordRepository.findById(keywordId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 키워드 ID"));
+                .orElseThrow(() -> new WordsException(WordsErrorCode.KEYWORD_NOT_FOUND));
 
         // 기본적으로 예문을 가공해서 꺼내오되
         String example = keyword.getExampleSentence();

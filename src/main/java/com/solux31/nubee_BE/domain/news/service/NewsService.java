@@ -10,6 +10,8 @@ import com.solux31.nubee_BE.domain.news.dto.Response.*;
 import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import com.solux31.nubee_BE.domain.news.entity.Quiz;
 import com.solux31.nubee_BE.domain.news.entity.mapping.UserQuizLog;
+import com.solux31.nubee_BE.domain.news.exception.NewsException;
+import com.solux31.nubee_BE.domain.news.exception.code.NewsErrorCode;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
@@ -328,7 +330,7 @@ public class NewsService {
     @Transactional(readOnly = true)
     public QuizResDTO getNewsQuizByNewsId(Long newsId) {
         Quiz quiz = quizRepository.findByDailyNewsIdAndQuizType(newsId, "NEWS")
-                .orElseThrow(() -> new IllegalArgumentException("해당 뉴스 퀴즈 존재하지 않음"));
+                .orElseThrow(() -> new NewsException(NewsErrorCode.NEWS_QUIZ_NOT_FOUND));
         return convertToQuizResponse(quiz, false);
     }
 
@@ -367,6 +369,10 @@ public class NewsService {
     public QuizSubmitResDTO submitAndGradeKeywordQuiz(Long userId, Long keywordId, QuizSubmitReqDTO request) {
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
+
+        if (quiz.getKeyword() == null || !quiz.getKeyword().getId().equals(keywordId)) {
+                   throw new IllegalArgumentException("해당 퀴즈는 지정된 키워드에 속하지 않은 퀴즈입니다.");
+        }
 
         boolean alreadySolved = userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id());
         boolean isCorrect = Objects.equals(quiz.getAnswer(), request.getSelected_answer());
@@ -474,7 +480,7 @@ public class NewsService {
     @Transactional(readOnly = true)
     public NewsDetailResDTO getNewsDetailWithKeywords(Long newsId) {
         DailyNews news = dailyNewsRepository.findById(newsId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 뉴스 기사 ID"));
+                .orElseThrow(() -> new NewsException(NewsErrorCode.NEWS_NOT_FOUND));
 
         List<Keyword> keywordList = keywordRepository.findByDailyNewsId(newsId);
 

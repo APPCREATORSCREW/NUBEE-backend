@@ -32,7 +32,7 @@ public class WordsController {
 
     /**
      * 오늘의 맞춤 키워드 및 뉴스 리스트 조회
-     * GET /api/words
+     * GET /api/keywords
      */
     @Operation(summary = "오늘의 맞춤 키워드 및 뉴스 리스트 조회",
             description = "유저 설정에 맞춰 카테고리 균형을 잡은 단어 카드와 연관 뉴스 리스트를 반환함.")
@@ -46,7 +46,7 @@ public class WordsController {
 
     /**
      * 1번 특정 키워드 설명 조회
-     * GET /api/words/{keyword_id}
+     * GET /api/keywords/{keyword_id}
      */
     @Operation(summary = "선택한 키워드의 설명 조회",
             description = "키워드 ID를 통해 해당 단어의 이름, 초등 눈높이 설명, 예문, 타입을 반환함.")
@@ -60,7 +60,7 @@ public class WordsController {
 
     /**
      * 2번 특정 키워드의 복습 퀴즈 조회
-     * GET /api/words/{keyword_id}/quiz
+     * GET /api/keywords/{keyword_id}/quiz
      */
     @Operation(summary = "특정 키워드의 퀴즈 조회",
             description = "키워드 ID를 통해 해당 단어와 연동된 KEYWORD 타입 퀴즈 1문제를 조회함.")
@@ -74,7 +74,7 @@ public class WordsController {
 
     /**
      * 3번 키워드 퀴즈 채점 및 포인트 지급
-     * POST /api/words/{keyword_id}/quiz/submit
+     * POST /api/keywords/{keyword_id}/quiz/submit
      */
     @Operation(summary = "키워드 퀴즈 채점 및 포인트 지급",
             description = "유저가 제출한 퀴즈 답안을 채점하여 정답 여부와 해설을 반환하고, 정답일 경우 1포인트를 지급함.")
