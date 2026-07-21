@@ -310,6 +310,7 @@ public class AuthService {
 
         // 코드 일치 확인
         if (!verification.getCode().equals(request.getCode())) {
+            verification.increaseFailCount();
             throw new AuthException(AuthErrorCode.EMAIL_CODE_MISMATCH);
         }
 
