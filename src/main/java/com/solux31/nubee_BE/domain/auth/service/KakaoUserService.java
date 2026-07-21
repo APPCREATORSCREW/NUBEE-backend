@@ -4,6 +4,8 @@ import com.solux31.nubee_BE.domain.auth.dto.Response.KakaoLoginResDTO;
 import com.solux31.nubee_BE.domain.auth.entity.RefreshToken;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
+import com.solux31.nubee_BE.domain.auth.exception.AuthException;
+import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
 import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.profile.entity.Skin;
@@ -73,7 +75,7 @@ public class KakaoUserService {
 
         // 기본 스킨 조회
         Skin defaultSkin = skinRepository.findBySkinCode("DEFAULT")
-                .orElseThrow(() -> new IllegalArgumentException("기본 스킨이 존재하지 않습니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.DEFAULT_SKIN_NOT_FOUND));
 
         // user_skin에 기본 스킨 지급
         UserSkin userSkin = new UserSkin(user, defaultSkin, LocalDateTime.now());

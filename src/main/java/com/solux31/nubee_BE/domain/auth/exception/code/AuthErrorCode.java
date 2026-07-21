@@ -35,6 +35,7 @@ public enum AuthErrorCode implements BaseErrorCode {
     KAKAO_INVALID_STATE(HttpStatus.BAD_REQUEST, "AUTH400_7", "유효하지 않은 state 값입니다."),
     KAKAO_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "AUTH401_5", "카카오 인증 코드가 유효하지 않습니다."),
     KAKAO_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "AUTH500_1", "카카오 서버 오류가 발생했습니다."),
+    KAKAO_INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "AUTH401_6", "유효하지 않은 카카오 Access Token입니다."),
 
     // 기본 스킨
     DEFAULT_SKIN_NOT_FOUND(HttpStatus.NOT_FOUND, "AUTH404_3", "기본 스킨이 존재하지 않습니다."),
