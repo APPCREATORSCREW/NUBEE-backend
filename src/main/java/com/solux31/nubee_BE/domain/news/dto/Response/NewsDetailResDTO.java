@@ -1,4 +1,4 @@
-package com.solux31.nubee_BE.domain.news.dto;
+package com.solux31.nubee_BE.domain.news.dto.Response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -10,7 +10,7 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class NewsDetailResponse {
+public class NewsDetailResDTO {
     private Long id;
     private String category;
     private String title;

@@ -1,4 +1,4 @@
-package com.solux31.nubee_BE.domain.news.dto;
+package com.solux31.nubee_BE.domain.news.dto.Response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -11,7 +11,7 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class QuizResponse {
+public class QuizResDTO {
     private Long id;
     private Long news_id;
     private Long keyword_id; // 뉴스 퀴즈일 때는 null, 키워드 퀴즈일 때는 id가 담김

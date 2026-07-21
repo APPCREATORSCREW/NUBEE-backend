@@ -2,7 +2,7 @@ package com.solux31.nubee_BE.domain.news.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.solux31.nubee_BE.domain.news.dto.NewsAnalysisResult;
-import com.solux31.nubee_BE.domain.news.dto.NaverNewsResponse;
+import com.solux31.nubee_BE.domain.news.dto.Response.NaverNewsResDTO;
 import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import com.solux31.nubee_BE.domain.news.entity.Quiz;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
@@ -17,10 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
-import java.util.List;
 
 import javax.net.ssl.*;
-import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 
 @Component
@@ -52,7 +50,7 @@ public class NewsTransactionHelper {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public String processSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String categoryName) throws Exception {
+    public String processSingleNews(NaverNewsResDTO.NaverNewsItem naverNews, String categoryName) throws Exception {
         String articleBody = "";
         String imageUrl = null;
 
@@ -196,7 +194,7 @@ public class NewsTransactionHelper {
         return urlString;
     }
 
-    private NewsAnalysisResult analyzeSingleNews(NaverNewsResponse.NaverNewsItem naverNews, String articleBody, String categoryName) {
+    private NewsAnalysisResult analyzeSingleNews(NaverNewsResDTO.NaverNewsItem naverNews, String articleBody, String categoryName) {
         String prompt = String.format(
                 "You are an AI content generator and a friendly teacher for elementary school students (3rd-4th grade).\n" +
                         "Analyze the provided [News Link] and [Alternative Text] below. You must reply strictly in the specified JSON format.\n\n" +
