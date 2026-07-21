@@ -1,4 +1,4 @@
-package com.solux31.nubee_BE.domain.news.dto;
+package com.solux31.nubee_BE.domain.news.dto.Response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -10,7 +10,7 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class TodayNewsResponse {
+public class TodayNewsResDTO {
     private int total_count;
     private List<NewsDto> news_list;
 

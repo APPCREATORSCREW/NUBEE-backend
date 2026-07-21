@@ -37,5 +37,5 @@ public interface KeywordRepository extends JpaRepository<Keyword, Long> {
     Optional<Keyword> findByWordAndDailyNewsId(String word, Long newsId);
 
     boolean existsByWord(String word);
-    Optional<Keyword> findByWord(String word);
+    Optional<Keyword> findFirstByWord(String word);
 }

@@ -1,10 +1,10 @@
-package com.solux31.nubee_BE.domain.news.dto;
+package com.solux31.nubee_BE.domain.news.dto.Response;
 
 import lombok.Getter;
 import java.util.List;
 
 @Getter
-public class NaverNewsResponse {
+public class NaverNewsResDTO {
 
     private List<NaverNewsItem> items; // 검색 결과 기사들이 담기는 리스트
 

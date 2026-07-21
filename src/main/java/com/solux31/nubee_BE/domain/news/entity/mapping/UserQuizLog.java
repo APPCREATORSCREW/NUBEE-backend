@@ -1,4 +1,4 @@
-package com.solux31.nubee_BE.domain.news.entity;
+package com.solux31.nubee_BE.domain.news.entity.mapping;
 
 import jakarta.persistence.*;
 import lombok.*;

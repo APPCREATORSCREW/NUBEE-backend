@@ -1,4 +1,4 @@
-package com.solux31.nubee_BE.domain.words.dto;
+package com.solux31.nubee_BE.domain.words.dto.Response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -9,7 +9,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class KeywordDetailResponse {
+public class KeywordDetailResDTO {
     private Long id;
     private String word;
     private String explanation;
