@@ -23,7 +23,7 @@ import java.util.Map;
 
 @Tag(name = "Keyword API", description = "단어/키워드 상세 정보 및 퀴즈 관련 API")
 @RestController
-@RequestMapping("/api/words")
+@RequestMapping("/api/keywords")
 @RequiredArgsConstructor
 public class WordsController {
 

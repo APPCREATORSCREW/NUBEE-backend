@@ -17,14 +17,14 @@ import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
 import com.solux31.nubee_BE.domain.words.service.WordService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,6 +47,8 @@ public class NewsService {
     private static final String DEFAULT_EXPLANATION = "이 단어에 대한 설명이 준비되고 있어요.";
     private static final String DEFAULT_EXAMPLE = "뉴스 본문을 읽으며 단어의 맥락을 파악해 보세요.";
 
+    private static final List<String> BASE_CATEGORIES = List.of("경제", "사회", "과학", "세계");
+
     public void executeDailyNewsWorkflow() {
         String[] categories = {"101", "102", "105", "104"};
 
@@ -54,7 +56,7 @@ public class NewsService {
 
         for (String categoryId : categories) {
             String categoryName = convertCategoryName(categoryId);
-            List<NaverNewsResDTO.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 4);
+            List<NaverNewsResDTO.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 20);
 
             if (naverNewsList == null || naverNewsList.isEmpty()) {
                 continue;
@@ -62,7 +64,11 @@ public class NewsService {
 
             int savedCount = 0;
             for (NaverNewsResDTO.NaverNewsItem naverNews : naverNewsList) {
-                if (savedCount >= 1) break;
+                // 목표 수량(2개) 달성 시 탈출 안내 출력 후 break
+                if (savedCount >= 2) {
+                    System.out.println("🎉 [" + categoryName + "] 목표 수량(" + savedCount + "개) 저장 완료, 해당 카테고리를 수집을 종료합니다.");
+                    break;
+                }
 
                 // 1. 기사 중복 필터링
                 if (collectedLinks.contains(naverNews.getLink()) || dailyNewsRepository.existsByOriginalUrl(naverNews.getLink())) {
@@ -76,33 +82,36 @@ public class NewsService {
 
                     if (mainKeyword != null && !mainKeyword.trim().isEmpty()) {
 
-                        // 2. 방금 생성된 기사 엔티티 역추적 (URL 기준으로 찾아오는 방법이 가장 안전)
+                        // 2. 방금 생성된 기사 엔티티 역추적
                         DailyNews currentNews = dailyNewsRepository.findByOriginalUrl(naverNews.getLink())
                                 .orElseThrow(() -> new IllegalStateException("방금 저장된 기사를 찾을 수 없습니다."));
 
-                        // 3. 중복 키워드 분기 처리 (이제 더 이상 continue로 흐름을 파괴하지 않음)
+                        // 3. 중복 키워드 분기 처리
                         if (keywordRepository.existsByWord(mainKeyword)) {
                             System.out.println("⚠️ 기존 마스터 키워드 발견 [" + mainKeyword + "] -> 현재 기사와 연동 및 퀴즈 추가 프로세스 진행");
 
-                            // 이미 존재하는 키워드라면 뜻 설명 생성(Gemini) 과정을 생략하고 매핑만 진행
                             Keyword existingKeyword = keywordRepository.findByWord(mainKeyword)
                                     .orElseThrow(() -> new IllegalStateException("존재한다고 했으나 조회에 실패했습니다."));
 
-                            // 기존 saveQuizForExistingKeyword 대신 Gemini 호출 없는 재사용 메서드 호출
                             reuseExistQuizForKeyword(existingKeyword, currentNews, categoryName);
                         } else {
                             System.out.println("🌱 새로운 마스터 키워드 발견 [" + mainKeyword + "] -> Gemini 통합 연성 시작");
-                            // 처음 발견된 신규 키워드라면 마스터 풀 등록 및 퀴즈 생성
                             saveMasterKeywordsAndQuizzesInTransaction(mainKeyword, categoryName, currentNews.getId());
                         }
 
                         collectedLinks.add(naverNews.getLink());
                         savedCount++;
+                        System.out.println("✅ [" + categoryName + "] " + savedCount + "번째 뉴스 수집/저장 성공!"); // 저장 성공 시점 출력
                     }
                 } catch (Exception e) {
                     System.err.println("❌ [" + categoryName + "] 파이프라인 오류로 인한 패스: " + naverNews.getLink());
                     e.printStackTrace();
                 }
+            }
+
+            // ⚠️ 반복문이 끝났는데도 2개를 못 채웠을 때만 출력되는 알림 (반복문 밖)
+            if (savedCount < 2) {
+                System.out.println("⚠️ [" + categoryName + "] 카테고리는 후보 부족 또는 오류로 인해 " + savedCount + "개만 저장되었습니다.");
             }
         }
     }
@@ -150,7 +159,7 @@ public class NewsService {
         List<MainKeywordResult> masterResults = generateMasterKeywordsAndQuizzes(mainKeyword);
 
         if (masterResults == null || masterResults.isEmpty()) {
-            throw new IllegalArgumentException("Gemini 분석 결과가 비어있어 데이터를 적재할 수 없어.");
+            throw new IllegalArgumentException("Gemini 분석 결과가 비어있어 데이터를 적재할 수 없습니다.");
         }
 
         for (MainKeywordResult master : masterResults) {
@@ -278,38 +287,17 @@ public class NewsService {
             return new TodayNewsResDTO(0, new ArrayList<>());
         }
 
-        // 1. 시스템에서 다루는 4대 뉴스 카테고리 기준선 정의
-        List<String> baseCategories = List.of("경제", "사회", "과학", "세계");
+        // 1. 유저의 취약(가장 학습이 필요한) 카테고리 선별
+        String targetCategory = determineWeakCategory(userId);
 
-        // 2. 사용자가 풀이한 이력이 있는 카테고리 순위 가져오기 (전체 가져오도록 페이징 제거 또는 넉넉하게 조회)
-        List<String> leastSolved = userQuizLogRepository.findLeastSolvedCategories(userId, org.springframework.data.domain.PageRequest.of(0, 4));
+        // 2. 취약 카테고리 우선 배치 + 나머지 카테고리 라운드 로빈 순서 재정렬
+        List<DailyNews> priorityFilteredList = rearrangeByWeakCategorySequence(allTodayNews, targetCategory);
 
-        // 3. 전체 기준 카테고리 중, 풀이 이력(leastSolved)에 아예 존재하지 않는 '미학습 카테고리'를 우선 선별
-        String targetCategory = baseCategories.stream()
-                .filter(category -> !leastSolved.contains(category))
-                .findFirst()
-                // 4. 만약 모든 카테고리를 한 번씩은 다 풀었다면, 기존의 풀이 횟수가 가장 적은 순(leastSolved의 첫 번째 항목)을 선택하고, 그것도 비어있다면 "경제"로 롤백
-                .orElseGet(() -> leastSolved.isEmpty() ? "경제" : leastSolved.get(0));
-
-        List<DailyNews> priorityFilteredList = new ArrayList<>();
-
-        List<DailyNews> weakCategoryNews = allTodayNews.stream()
-                .filter(news -> targetCategory.equals(news.getCategory()))
-                .toList();
-        priorityFilteredList.addAll(weakCategoryNews);
-
-        List<DailyNews> remainBalancedList = rearrangeByWeakCategorySequence(allTodayNews, targetCategory);
-        java.util.Collections.shuffle(remainBalancedList);
-
-        for (DailyNews remainNews : remainBalancedList) {
-            if (!priorityFilteredList.contains(remainNews)) {
-                priorityFilteredList.add(remainNews);
-            }
-        }
-
+        // 3. 선호 개수만큼 슬라이싱
         int targetSize = Math.min(userPreferredCount, priorityFilteredList.size());
         List<DailyNews> selectedNews = priorityFilteredList.subList(0, targetSize);
 
+        // 4. DTO 변환
         List<TodayNewsResDTO.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
             Keyword realKeyword = news.getRelatedKeywords().isEmpty() ? null : news.getRelatedKeywords().get(0);
 
@@ -381,15 +369,21 @@ public class NewsService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈 ID로 채점 요청"));
 
         boolean alreadySolved = userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id());
-        boolean isCorrect = (quiz.getAnswer() == request.getSelected_answer());
+        boolean isCorrect = Objects.equals(quiz.getAnswer(), request.getSelected_answer());
 
         int earnedPoint = 0;
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
         if (!alreadySolved) {
-            earnedPoint = isCorrect ? 1 : 0;
-            user.updatePoint(earnedPoint);
+            boolean isTodayQuiz = quiz.getCreatedAt() != null
+                    && quiz.getCreatedAt().toLocalDate().isEqual(LocalDate.now());
+
+            earnedPoint = (isCorrect && isTodayQuiz) ? 1 : 0;
+
+            if (earnedPoint > 0) {
+                user.updatePoint(earnedPoint);
+            }
 
             UserQuizLog quizLog = UserQuizLog.builder()
                     .userId(userId)
@@ -406,13 +400,14 @@ public class NewsService {
                 earnedPoint, user.getPoint()
         );
 
-        QuizSubmitResDTO.LearningResultDto learningResult = new QuizSubmitResDTO.LearningResultDto(
-                earnedPoint, user.getPoint(), true
-        );
-
         return new QuizSubmitResDTO(
-                quiz.getId(), request.getSelected_answer(), isCorrect, quiz.getAnswer(),
-                quiz.getExplanation(), pointResult, learningResult
+                quiz.getId(),
+                request.getSelected_answer(),
+                quiz.getAnswer(),       // correct_answer (int)
+                isCorrect,              // is_correct (boolean)
+                quiz.getExplanation(),
+                false,
+                pointResult
         );
     }
 
@@ -429,13 +424,19 @@ public class NewsService {
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
         boolean alreadySolved = userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id());
-        boolean isCorrect = (quiz.getAnswer() == request.getSelected_answer());
+        boolean isCorrect = Objects.equals(quiz.getAnswer(), request.getSelected_answer());
 
         int earnedPoint = 0;
 
         if (!alreadySolved) {
-            earnedPoint = isCorrect ? 1 : 0;
-            user.updatePoint(earnedPoint);
+            boolean isTodayQuiz = quiz.getCreatedAt() != null
+                    && quiz.getCreatedAt().toLocalDate().isEqual(LocalDate.now());
+
+            earnedPoint = (isCorrect && isTodayQuiz) ? 1 : 0;
+
+            if (earnedPoint > 0) {
+                user.updatePoint(earnedPoint);
+            }
 
             UserQuizLog quizLog = UserQuizLog.builder()
                     .userId(userId)
@@ -452,13 +453,14 @@ public class NewsService {
                 earnedPoint, user.getPoint()
         );
 
-        QuizSubmitResDTO.LearningResultDto learningResult = new QuizSubmitResDTO.LearningResultDto(
-                earnedPoint, user.getPoint(), true
-        );
-
         return new QuizSubmitResDTO(
-                quiz.getId(), request.getSelected_answer(), isCorrect, quiz.getAnswer(),
-                quiz.getExplanation(), pointResult, learningResult
+                quiz.getId(),
+                request.getSelected_answer(),
+                quiz.getAnswer(),       // correct_answer (int)
+                isCorrect,              // is_correct (boolean)
+                quiz.getExplanation(),
+                true,
+                pointResult
         );
     }
 
@@ -489,24 +491,60 @@ public class NewsService {
         );
     }
 
-    private List<DailyNews> rearrangeByWeakCategorySequence(List<DailyNews> source, String weakCategory) {
-        List<DailyNews> weakList = source.stream().filter(n -> weakCategory.equals(n.getCategory())).toList();
+    private String determineWeakCategory(Long userId) {
+        // 1. DB 로그상 가장 풀이 수가 적은 카테고리 1개 조회
+        List<String> leastSolved = userQuizLogRepository.findLeastSolvedCategories(userId, PageRequest.of(0, 1));
 
-        List<DailyNews> economy = source.stream().filter(n -> "경제".equals(n.getCategory()) && !weakCategory.equals("경제")).toList();
-        List<DailyNews> society = source.stream().filter(n -> "사회".equals(n.getCategory()) && !weakCategory.equals("사회")).toList();
-        List<DailyNews> science = source.stream().filter(n -> "과학".equals(n.getCategory()) && !weakCategory.equals("과학")).toList();
-        List<DailyNews> world = source.stream().filter(n -> "세계".equals(n.getCategory()) && !weakCategory.equals("세계")).toList();
-
-        List<DailyNews> result = new ArrayList<>();
-        result.addAll(weakList);
-
-        int maxSize = Math.max(Math.max(economy.size(), society.size()), Math.max(science.size(), world.size()));
-        for (int i = 0; i < maxSize; i++) {
-            if (i < economy.size()) result.add(economy.get(i));
-            if (i < society.size()) result.add(society.get(i));
-            if (i < science.size()) result.add(science.get(i));
-            if (i < world.size()) result.add(world.get(i));
+        // 2. [Edge Case 1] 신규 유저 (로그 0개) -> 기본 카테고리 "경제" 반환
+        if (leastSolved.isEmpty()) {
+            return "경제";
         }
+
+        // 3. [Edge Case 2] DB 로그에 한 번도 기록되지 않은 (0개 푼) 카테고리가 있다면 최우선 선택
+        List<String> userSolvedCategories = userQuizLogRepository.findAllCategoriesByUserId(userId);
+        for (String category : BASE_CATEGORIES) {
+            if (!userSolvedCategories.contains(category)) {
+                return category; // 0개 푼 카테고리를 최우선 선정
+            }
+        }
+
+        // 4. 모든 카테고리를 1번 이상 풀었다면 가장 적게 푼 카테고리 반환
+        return leastSolved.get(0);
+    }
+
+    private List<DailyNews> rearrangeByWeakCategorySequence(List<DailyNews> source, String weakCategory) {
+        if (source == null || source.isEmpty()) return Collections.emptyList();
+
+        // 1. 취약 카테고리 뉴스 먼저 추출
+        List<DailyNews> weakList = source.stream()
+                .filter(n -> n.getCategory() != null && n.getCategory().equals(weakCategory))
+                .toList();
+
+        // 2. 취약 카테고리를 제외한 나머지 뉴스들을 카테고리별로 그룹화 (LinkedHashMap 사용으로 순서 고정)
+        Map<String, List<DailyNews>> otherCategoryMap = source.stream()
+                .filter(n -> n.getCategory() != null && !n.getCategory().equals(weakCategory))
+                .collect(Collectors.groupingBy(
+                        DailyNews::getCategory,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        List<DailyNews> result = new ArrayList<>(weakList);
+
+        // 3. 나머지 카테고리들에서 하나씩 라운드 로빈으로 추가
+        boolean hasMore = true;
+        int index = 0;
+        while (hasMore) {
+            hasMore = false;
+            for (List<DailyNews> categoryList : otherCategoryMap.values()) {
+                if (index < categoryList.size()) {
+                    result.add(categoryList.get(index));
+                    hasMore = true;
+                }
+            }
+            index++;
+        }
+
         return result;
     }
 
