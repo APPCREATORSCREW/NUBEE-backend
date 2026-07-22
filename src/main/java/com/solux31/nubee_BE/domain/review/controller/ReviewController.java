@@ -1,6 +1,6 @@
 package com.solux31.nubee_BE.domain.review.controller;
 
-import com.solux31.nubee_BE.domain.review.dto.ReviewResDTO;
+import com.solux31.nubee_BE.domain.review.dto.Response.ReviewResDTO;
 import com.solux31.nubee_BE.domain.review.exception.code.ReviewSuccessCode;
 import com.solux31.nubee_BE.domain.review.service.ReviewService;
 import com.solux31.nubee_BE.global.apiPayload.ApiResponse;
@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "복습", description = "뉴스 다시보기 관련 API")
+@SecurityRequirement(name = "JWT TOKEN")
 @RestController
 @RequestMapping("/api/news")
 @RequiredArgsConstructor
@@ -35,14 +36,14 @@ public class ReviewController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/history")
-    public ResponseEntity<ApiResponse<ReviewResDTO.ReviewResponse>> getReviewNews(
+    public ResponseEntity<ApiResponse<ReviewResDTO>> getReviewNews(
             @AuthenticationPrincipal AuthUser authUser,
             @Parameter(description = "카테고리 필터 (필수)", required = true) @RequestParam String category,
             @Parameter(description = "페이지 번호 (기본값 0)") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "페이지당 개수 (기본값 20)") @RequestParam(defaultValue = "20") int size
     ) {
         Long userId = authUser.getUserId();
-        ReviewResDTO.ReviewResponse response =
+        ReviewResDTO response =
                 reviewService.getReviewNews(userId, category, page, size);
         return ResponseEntity.ok(
                 ApiResponse.onSuccess(ReviewSuccessCode.REVIEW_FETCH_SUCCESS, response)
