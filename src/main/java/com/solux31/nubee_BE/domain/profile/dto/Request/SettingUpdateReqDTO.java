@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 public class SettingUpdateReqDTO {
     @Min(0)
     @Max(6)
-    private int preferredKeywordCount;
-    private boolean notificationEnabled;
+    private Integer preferredKeywordCount;
+    private Boolean notificationEnabled;
     private String notificationTime;
 }

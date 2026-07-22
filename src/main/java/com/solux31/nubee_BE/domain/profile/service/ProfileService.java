@@ -80,13 +80,19 @@ public class ProfileService {
     public SettingsResDTO updateSettings(Long userId, SettingUpdateReqDTO request) {
         User user = getUserOrThrow(userId);
 
-        user.updatePreferredKeywordCount(request.getPreferredKeywordCount());
+        if (request.getPreferredKeywordCount() != null) {
+            user.updatePreferredKeywordCount(request.getPreferredKeywordCount());
+        }
+
+        boolean enabled = request.getNotificationEnabled() != null
+                ? request.getNotificationEnabled()
+                : user.isNotificationEnabled();   // 안 왔으면 기존 값 유지
 
         LocalTime time = (request.getNotificationTime() != null && !request.getNotificationTime().isBlank())
                 ? LocalTime.parse(request.getNotificationTime())
-                : null;
+                : user.getNotificationTime();      // 안 왔으면 기존 값 유지
 
-        user.updateNotificationSettings(request.isNotificationEnabled(), time);
+        user.updateNotificationSettings(enabled, time);
 
         return SettingsResDTO.builder()
                 .preferredKeywordCount(user.getPreferredKeywordCount())
