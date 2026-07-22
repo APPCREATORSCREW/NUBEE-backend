@@ -24,7 +24,7 @@ import com.solux31.nubee_BE.domain.auth.repository.EmailVerificationRepository;
 import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.profile.entity.Skin;
-import com.solux31.nubee_BE.domain.profile.entity.UserSkin;
+import com.solux31.nubee_BE.domain.profile.entity.mapping.UserSkin;
 import com.solux31.nubee_BE.domain.profile.repository.SkinRepository;
 import com.solux31.nubee_BE.domain.profile.repository.UserSkinRepository;
 import com.solux31.nubee_BE.global.email.EmailService;

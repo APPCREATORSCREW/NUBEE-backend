@@ -1,7 +1,7 @@
 package com.solux31.nubee_BE.domain.auth.entity;
 
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
-import com.solux31.nubee_BE.domain.profile.entity.UserSkin;
+import com.solux31.nubee_BE.domain.profile.entity.mapping.UserSkin;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
