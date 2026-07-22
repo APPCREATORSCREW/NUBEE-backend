@@ -17,6 +17,10 @@ public enum WordsErrorCode implements BaseErrorCode {
     // --- 404 Not Found ---
     KEYWORD_NOT_FOUND(HttpStatus.NOT_FOUND, "WORDS404_1", "존재하지 않는 키워드입니다."),
     KEYWORD_QUIZ_NOT_FOUND(HttpStatus.NOT_FOUND, "WORDS404_2", "해당 키워드에 연결된 퀴즈가 존재하지 않습니다."),
+    WORD_NOT_FOUND(HttpStatus.NOT_FOUND, "WORDS404_3", "단어장에 존재하지 않는 단어입니다."),
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "WORDS404_4", "존재하지 않는 유저입니다."),
+
+    DUPLICATE_WORD(HttpStatus.CONFLICT, "WORDS409_1", "이미 단어장에 있는 단어입니다."),
 
     // --- 500 Internal Server Error ---
     GEMINI_EMPTY_RESULT(HttpStatus.INTERNAL_SERVER_ERROR, "WORDS500_1", "Gemini 분석 결과가 비어있어 키워드 및 퀴즈를 적재할 수 없습니다.");

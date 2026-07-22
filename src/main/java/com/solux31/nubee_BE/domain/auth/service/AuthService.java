@@ -59,6 +59,7 @@ public class AuthService {
     private final ApplicationEventPublisher eventPublisher;
     private final SkinRepository skinRepository;
     private final UserSkinRepository userSkinRepository;
+    private final EmailVerificationService emailVerificationService;
 
     // 회원가입
     @Transactional
@@ -310,7 +311,7 @@ public class AuthService {
 
         // 코드 일치 확인
         if (!verification.getCode().equals(request.getCode())) {
-            verification.increaseFailCount();
+            emailVerificationService.increaseFailCount(verification);
             throw new AuthException(AuthErrorCode.EMAIL_CODE_MISMATCH);
         }
 
@@ -406,7 +407,7 @@ public class AuthService {
 
         // 코드 일치 확인
         if (!verification.getCode().equals(request.getCode())) {
-            verification.increaseFailCount();
+            emailVerificationService.increaseFailCount(verification);
             throw new AuthException(AuthErrorCode.EMAIL_CODE_MISMATCH);
         }
 
