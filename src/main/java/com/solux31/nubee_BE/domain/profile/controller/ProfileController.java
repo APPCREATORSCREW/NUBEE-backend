@@ -90,7 +90,7 @@ public class ProfileController {
     @PatchMapping("/skin")
     public ResponseEntity<ApiResponse<SkinApplyResDTO>> applySkin(
             @AuthenticationPrincipal AuthUser authUser,
-            @RequestBody SkinApplyReqDTO request
+            @Valid @RequestBody SkinApplyReqDTO request
     ) {
         SkinApplyResDTO result = profileService.applySkin(authUser.getUserId(), request);
         return ResponseEntity.ok(
