@@ -1,5 +1,6 @@
 package com.solux31.nubee_BE.domain.news.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.solux31.nubee_BE.domain.auth.entity.User;
@@ -167,25 +168,28 @@ public class NewsService {
         }
 
         for (MainKeywordResult master : masterResults) {
-            // 마스터 단어장에 정보 업데이트 후 키워드 ID 반환받기
-            Long savedKeywordId = wordService.updateKeywordExplanations(
-                    master.getKeyword(),
-                    master.getExplanation(),
-                    master.getExampleSentence(),
-                    newsId
-            );
-
-            if (savedKeywordId == null) {
-                System.err.println("⚠️ 마스터 키워드 업데이트 실패 (단어를 찾을 수 없음): " + master.getKeyword() + " (newsId: " + newsId + ")");
-                throw new WordsException(WordsErrorCode.KEYWORD_NOT_FOUND);
-            }
-
             try {
+                // 1. 마스터 단어장에 정보 업데이트 후 키워드 ID 반환받기
+                Long savedKeywordId = wordService.updateKeywordExplanations(
+                        master.getKeyword(),
+                        master.getExplanation(),
+                        master.getExampleSentence(),
+                        newsId
+                );
+
+                // 2. 단어를 찾을 수 없거나 업데이트 실패하는 경우
+                if (savedKeywordId == null) {
+                    System.err.println("⚠️ 마스터 키워드 업데이트 실패 (단어를 찾을 수 없음): "
+                            + master.getKeyword() + " (newsId: " + newsId + ")");
+                    throw new WordsException(WordsErrorCode.KEYWORD_NOT_FOUND);
+                }
+
                 Keyword keywordEntity = keywordRepository.findById(savedKeywordId)
                         .orElseThrow(() -> new WordsException(WordsErrorCode.KEYWORD_NOT_FOUND));
 
                 DailyNews newsEntity = (newsId != null) ? dailyNewsRepository.findById(newsId).orElse(null) : null;
 
+                // 3. 퀴즈 JSON 직렬화 및 엔티티 빌드
                 String optionsJson = objectMapper.writeValueAsString(master.getKeywordQuiz().getOptions());
                 Quiz keywordQuiz = Quiz.builder()
                         .quizType("KEYWORD")
@@ -197,9 +201,21 @@ public class NewsService {
                         .dailyNews(newsEntity)
                         .category(categoryName)
                         .build();
+
                 quizRepository.save(keywordQuiz);
+
+            } catch (WordsException e) {
+                throw e;
+            } catch (NewsException e) {
+                throw e;
+            } catch (JsonProcessingException e) {
+                // 퀴즈 옵션 JSON 직렬화 실패 시 GEMINI_PARSE_ERROR로 던짐
+                System.err.println("Failed to serialize quiz options to JSON: " + e.getMessage());
+                throw new NewsException(NewsErrorCode.GEMINI_PARSE_ERROR);
             } catch (Exception e) {
-                System.err.println("키워드 마스터 퀴즈 DB 저장 중 오류 발생");
+                // 기타 DB 영속화 실패 및 예상치 못한 예외 처리
+                System.err.println("Failed to save master keywords and quizzes: newsId=" + newsId);
+                e.printStackTrace();
                 throw new WordsException(WordsErrorCode.GEMINI_EMPTY_RESULT);
             }
         }

@@ -79,9 +79,11 @@ public class NewsTransactionHelper {
             if (articleBody == null || articleBody.trim().isEmpty()) {
                 throw new NewsException(NewsErrorCode.ARTICLE_BODY_EMPTY);
             }
-            System.out.println("기사 크롤링 성공! (본문 글자 수: " + articleBody.length() + "자)");
+        } catch (NewsException e) {
+            throw e;
         } catch (Exception e) {
-            System.out.println("⚠️ 기사 크롤링 실패로 description 대체 실행: " + naverNews.getLink() + " | 사유: " + e.getMessage());
+            // Jsoup 크롤링 실패 등 기타 일반 예외만 description fallback 처리
+            System.err.println("⚠️ 기사 본문 추출 실패, description으로 대체합니다: " + e.getMessage());
             articleBody = naverNews.getDescription();
         }
 
@@ -247,30 +249,39 @@ public class NewsTransactionHelper {
                 categoryName, categoryName, naverNews.getLink(), articleBody
         );
 
+        String jsonResponse;
         try {
-            String jsonResponse = geminiService.callGemini(prompt);
+            jsonResponse = geminiService.callGemini(prompt);
+        } catch (NewsException e) {
+            throw e;
+        } catch (Exception e) {
+            System.err.println("❌ Gemini API 호출 실패: " + e.getMessage());
+            throw new NewsException(NewsErrorCode.GEMINI_ANALYSIS_FAILED);
+        }
 
-            if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
-                throw new NewsException(NewsErrorCode.GEMINI_ANALYSIS_FAILED);
-            }
+        // 2. 응답값 기본 null/빈값 검증
+        if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
+            throw new NewsException(NewsErrorCode.GEMINI_ANALYSIS_FAILED);
+        }
 
+        // 3. JSON 추출 및 역직렬화 (파싱 실패 시 GEMINI_PARSE_ERROR)
+        try {
             jsonResponse = jsonResponse.trim();
             int startIndex = jsonResponse.indexOf("{");
             int endIndex = jsonResponse.lastIndexOf("}");
 
             if (startIndex == -1 || endIndex == -1 || startIndex > endIndex) {
-                System.err.println("❌ Gemini 응답에 유효한 JSON 구조가 포함되어 있지 않습니다.");
+                System.err.println("❌ Gemini 응답에 유효한 JSON 구조가 없음");
                 throw new NewsException(NewsErrorCode.GEMINI_PARSE_ERROR);
             }
 
-            // {로 시작해서 }로 끝나는 알맹이만 파싱
             String pureJson = jsonResponse.substring(startIndex, endIndex + 1);
-
             return objectMapper.readValue(pureJson, NewsAnalysisResult.class);
+
         } catch (NewsException e) {
             throw e;
         } catch (Exception e) {
-            System.err.println("❌ 개별 뉴스 Gemini 연성 및 파싱 중 에러 발생");
+            System.err.println("❌ Gemini 응답 JSON 파싱 실패: " + e.getMessage());
             throw new NewsException(NewsErrorCode.GEMINI_PARSE_ERROR);
         }
     }
