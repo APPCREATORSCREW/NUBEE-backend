@@ -21,6 +21,8 @@ public enum NewsErrorCode implements BaseErrorCode {
     NEWS_NOT_FOUND(HttpStatus.NOT_FOUND, "NEWS404_2", "존재하지 않는 뉴스 기사입니다."),
     NEWS_QUIZ_NOT_FOUND(HttpStatus.NOT_FOUND, "NEWS404_3", "해당 뉴스의 퀴즈가 존재하지 않습니다."),
 
+    ALREADY_SOLVED_QUIZ(HttpStatus.CONFLICT, "NEWS409_1", "이미 풀이한 퀴즈입니다."),
+
     // --- 500 Internal Server Error ---
     ARTICLE_BODY_EMPTY(HttpStatus.INTERNAL_SERVER_ERROR, "NEWS500_1", "기사 본문을 추출할 수 없거나 비어있습니다."),
     GEMINI_ANALYSIS_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "NEWS500_2", "AI 분석 결과 생성 중 오류가 발생했습니다."),

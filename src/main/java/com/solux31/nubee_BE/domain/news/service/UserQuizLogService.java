@@ -1,8 +1,12 @@
 package com.solux31.nubee_BE.domain.news.service;
 
+import com.solux31.nubee_BE.domain.auth.exception.AuthException;
+import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
 import com.solux31.nubee_BE.domain.news.dto.Request.QuizSubmitReqDTO;
 import com.solux31.nubee_BE.domain.news.entity.Quiz;
 import com.solux31.nubee_BE.domain.news.entity.mapping.UserQuizLog;
+import com.solux31.nubee_BE.domain.news.exception.NewsException;
+import com.solux31.nubee_BE.domain.news.exception.code.NewsErrorCode;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
 import com.solux31.nubee_BE.domain.auth.entity.User; // 유저 엔티티 임포트
@@ -28,15 +32,15 @@ public class UserQuizLogService {
 
         // 1. 중복 체크
         if (userQuizLogRepository.existsByUserIdAndQuizId(userId, request.getQuiz_id())) {
-            throw new IllegalStateException("이미 풀이한 퀴즈임.");
+            throw new NewsException(NewsErrorCode.ALREADY_SOLVED_QUIZ);
         }
 
         // 2. 퀴즈 및 유저 조회
         Quiz quiz = quizRepository.findById(request.getQuiz_id())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 퀴즈임."));
+                .orElseThrow(() -> new NewsException(NewsErrorCode.NEWS_QUIZ_NOT_FOUND));
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저임."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
 
         // 3. 채점 진행
         boolean isCorrect = (quiz.getAnswer() == request.getSelected_answer());
