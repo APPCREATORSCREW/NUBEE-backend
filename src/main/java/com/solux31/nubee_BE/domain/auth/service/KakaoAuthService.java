@@ -4,6 +4,8 @@ import com.solux31.nubee_BE.domain.auth.dto.Response.KakaoLoginResDTO;
 import com.solux31.nubee_BE.domain.auth.entity.RefreshToken;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
+import com.solux31.nubee_BE.domain.auth.exception.AuthException;
+import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
 import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
@@ -64,7 +66,7 @@ public class KakaoAuthService {
         // state 검증
         String savedState = (String) session.getAttribute("kakao_state");
         if (savedState == null || !savedState.equals(state)) {
-            throw new IllegalArgumentException("유효하지 않은 state 값입니다.");
+            throw new AuthException(AuthErrorCode.KAKAO_INVALID_STATE);
         }
         session.removeAttribute("kakao_state");
 
@@ -110,9 +112,9 @@ public class KakaoAuthService {
                         + "&code=" + code)
                 .retrieve()
                 .onStatus(status -> status.is4xxClientError(),
-                        res -> Mono.error(new IllegalArgumentException("카카오 인증 코드가 유효하지 않습니다.")))
+                        res -> Mono.error(new AuthException(AuthErrorCode.KAKAO_AUTH_FAILED)))
                 .onStatus(status -> status.is5xxServerError(),
-                        res -> Mono.error(new RuntimeException("카카오 서버 오류가 발생했습니다.")))
+                        res -> Mono.error(new AuthException(AuthErrorCode.KAKAO_SERVER_ERROR)))
                 .bodyToMono(Map.class)
                 .timeout(Duration.ofSeconds(5))  // 5초 타임아웃
                 .block();
@@ -130,9 +132,9 @@ public class KakaoAuthService {
                 .header("Authorization", "Bearer " + kakaoAccessToken)
                 .retrieve()
                 .onStatus(status -> status.is4xxClientError(),
-                        res -> Mono.error(new IllegalArgumentException("카카오 액세스 토큰이 유효하지 않습니다.")))
+                        res -> Mono.error(new AuthException(AuthErrorCode.KAKAO_INVALID_ACCESS_TOKEN)))
                 .onStatus(status -> status.is5xxServerError(),
-                        res -> Mono.error(new RuntimeException("카카오 서버 오류가 발생했습니다.")))
+                        res -> Mono.error(new AuthException(AuthErrorCode.KAKAO_SERVER_ERROR)))
                 .bodyToMono(Map.class)
                 .timeout(Duration.ofSeconds(5))  // 5초 타임아웃
                 .block();

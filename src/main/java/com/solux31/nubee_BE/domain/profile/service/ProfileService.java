@@ -1,6 +1,8 @@
 package com.solux31.nubee_BE.domain.profile.service;
 
 import com.solux31.nubee_BE.domain.auth.entity.User;
+import com.solux31.nubee_BE.domain.auth.exception.AuthException;
+import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.profile.dto.Request.ProfileImageUpdateReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.Request.SettingUpdateReqDTO;
@@ -150,6 +152,6 @@ public class ProfileService {
 
     private User getUserOrThrow(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
     }
 }
