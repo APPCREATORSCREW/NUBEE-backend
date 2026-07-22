@@ -5,6 +5,8 @@ import com.solux31.nubee_BE.domain.news.dto.NewsAnalysisResult;
 import com.solux31.nubee_BE.domain.news.dto.Response.NaverNewsResDTO;
 import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import com.solux31.nubee_BE.domain.news.entity.Quiz;
+import com.solux31.nubee_BE.domain.news.exception.NewsException;
+import com.solux31.nubee_BE.domain.news.exception.code.NewsErrorCode;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.words.service.WordService;
@@ -75,11 +77,13 @@ public class NewsTransactionHelper {
             }
 
             if (articleBody == null || articleBody.trim().isEmpty()) {
-                throw new Exception("본문이 비어있음.");
+                throw new NewsException(NewsErrorCode.ARTICLE_BODY_EMPTY);
             }
-            System.out.println("기사 크롤링 성공! (본문 글자 수: " + articleBody.length() + "자)");
+        } catch (NewsException e) {
+            throw e;
         } catch (Exception e) {
-            System.out.println("⚠️ 기사 크롤링 실패로 description 대체 실행: " + naverNews.getLink() + " | 사유: " + e.getMessage());
+            // Jsoup 크롤링 실패 등 기타 일반 예외만 description fallback 처리
+            System.err.println("⚠️ 기사 본문 추출 실패, description으로 대체합니다: " + e.getMessage());
             articleBody = naverNews.getDescription();
         }
 
@@ -89,23 +93,20 @@ public class NewsTransactionHelper {
         }
 
         if (articleBody == null || articleBody.trim().isEmpty()) {
-            throw new Exception("본문이 비어있음.");
+            throw new NewsException(NewsErrorCode.ARTICLE_BODY_EMPTY);
         }
 
         NewsAnalysisResult result = analyzeSingleNews(naverNews, articleBody, categoryName);
-        if (result == null) {
-            throw new RuntimeException("Gemini 분석 결과가 null임.");
-        }
 
         if (result.getNewsQuiz() == null || result.getNewsQuiz().getOptions() == null) {
-            throw new RuntimeException("AI 생성 퀴즈 또는 선택지가 존재하지 않음.");
+            throw new NewsException(NewsErrorCode.GEMINI_PARSE_ERROR);
         }
         if (result.getNewsQuiz().getOptions().size() != 4) {
-            throw new RuntimeException("AI 생성 퀴즈의 선택지 개수가 4개가 아님.");
+            throw new NewsException(NewsErrorCode.GEMINI_PARSE_ERROR);
         }
         int quizAnswer = result.getNewsQuiz().getAnswer();
         if (quizAnswer < 1 || quizAnswer > 4) {
-            throw new RuntimeException("AI 생성 퀴즈의 정답 범위가 1~4를 벗어남.");
+            throw new NewsException(NewsErrorCode.GEMINI_PARSE_ERROR);
         }
 
         System.out.println("데이터베이스(MySQL) 적재 시작");
@@ -148,16 +149,16 @@ public class NewsTransactionHelper {
             // 변경: http와 https 프로토콜을 둘 다 허용하도록 조건문 수정
             String protocol = url.getProtocol();
             if (!"https".equalsIgnoreCase(protocol) && !"http".equalsIgnoreCase(protocol)) {
-                throw new IllegalArgumentException("허용되지 않은 프로토콜임 (http/https만 허용).");
+                throw new NewsException(NewsErrorCode.INVALID_URL_PROTOCOL);
             }
 
             String host = url.getHost();
             if (host == null || host.trim().isEmpty()) {
-                throw new IllegalArgumentException("올바르지 않은 호스트 주소임.");
+                throw new NewsException(NewsErrorCode.INVALID_URL_HOST);
             }
             InetAddress inetAddress = InetAddress.getByName(host);
             if (inetAddress.isLoopbackAddress() || inetAddress.isSiteLocalAddress() || inetAddress.isLinkLocalAddress()) {
-                throw new IllegalArgumentException("제한된 내부 네트워크 주소로의 요청은 불가함.");
+                throw new NewsException(NewsErrorCode.INVALID_URL_HOST);
             }
 
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -248,30 +249,40 @@ public class NewsTransactionHelper {
                 categoryName, categoryName, naverNews.getLink(), articleBody
         );
 
+        String jsonResponse;
         try {
-            String jsonResponse = geminiService.callGemini(prompt);
+            jsonResponse = geminiService.callGemini(prompt);
+        } catch (NewsException e) {
+            throw e;
+        } catch (Exception e) {
+            System.err.println("❌ Gemini API 호출 실패: " + e.getMessage());
+            throw new NewsException(NewsErrorCode.GEMINI_ANALYSIS_FAILED);
+        }
 
-            if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
-                return null;
-            }
+        // 2. 응답값 기본 null/빈값 검증
+        if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
+            throw new NewsException(NewsErrorCode.GEMINI_ANALYSIS_FAILED);
+        }
 
+        // 3. JSON 추출 및 역직렬화 (파싱 실패 시 GEMINI_PARSE_ERROR)
+        try {
             jsonResponse = jsonResponse.trim();
             int startIndex = jsonResponse.indexOf("{");
             int endIndex = jsonResponse.lastIndexOf("}");
 
             if (startIndex == -1 || endIndex == -1 || startIndex > endIndex) {
-                System.err.println("❌ Gemini 응답에 유효한 JSON 구조가 포함되어 있지 않습니다.");
-                return null;
+                System.err.println("❌ Gemini 응답에 유효한 JSON 구조가 없음");
+                throw new NewsException(NewsErrorCode.GEMINI_PARSE_ERROR);
             }
 
-            // {로 시작해서 }로 끝나는 알맹이만 파싱
             String pureJson = jsonResponse.substring(startIndex, endIndex + 1);
-
             return objectMapper.readValue(pureJson, NewsAnalysisResult.class);
+
+        } catch (NewsException e) {
+            throw e;
         } catch (Exception e) {
-            System.err.println("❌ 개별 뉴스 Gemini 연성 및 파싱 중 에러 발생");
-            e.printStackTrace();
-            return null;
+            System.err.println("❌ Gemini 응답 JSON 파싱 실패: " + e.getMessage());
+            throw new NewsException(NewsErrorCode.GEMINI_PARSE_ERROR);
         }
     }
 }
