@@ -2,7 +2,6 @@ package com.solux31.nubee_BE.domain.profile.service;
 
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
-import com.solux31.nubee_BE.domain.profile.converter.ProfileConverter;
 import com.solux31.nubee_BE.domain.profile.dto.ProfileReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.ProfileResDTO;
 import com.solux31.nubee_BE.domain.profile.entity.Skin;
@@ -19,6 +18,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,7 +28,6 @@ public class ProfileService {
     private final UserSkinRepository userSkinRepository;
     private final SkinRepository skinRepository;
     private final UserStreakRepository userStreakRepository;
-    private final ProfileConverter profileConverter;
 
     public ProfileResDTO.Profile getProfile(Long userId) {
         User user = getUserOrThrow(userId);
@@ -38,7 +38,7 @@ public class ProfileService {
 
         List<Skin> allSkins = skinRepository.findAll();
         List<UserSkin> ownedSkins = userSkinRepository.findAllByUserId(userId);
-        List<ProfileResDTO.SkinInfo> skinInfos = profileConverter.toSkinInfoList(allSkins, ownedSkins);
+        List<ProfileResDTO.SkinInfo> skinInfos = toSkinInfoList(allSkins, ownedSkins);
 
         // user.getCurrentSkin()이 이미 UserSkin 객체이므로, 거기서 Skin을 꺼냄
         UserSkin currentUserSkin = user.getCurrentSkin();
@@ -116,6 +116,25 @@ public class ProfileService {
         return ProfileResDTO.ProfileImage.builder()
                 .profileImageUrl(user.getProfileImageUrl())
                 .build();
+    }
+
+    private ProfileResDTO.SkinInfo toSkinInfo(Skin skin, boolean isOwned) {
+        return ProfileResDTO.SkinInfo.builder()
+                .skinId(skin.getId())
+                .skinName(skin.getSkinName())
+                .imageUrl(skin.getImageUrl())
+                .isOwned(isOwned)
+                .build();
+    }
+
+    private List<ProfileResDTO.SkinInfo> toSkinInfoList(List<Skin> allSkins, List<UserSkin> ownedSkins) {
+        Set<Long> ownedSkinIds = ownedSkins.stream()
+                .map(us -> us.getSkin().getId())
+                .collect(Collectors.toSet());
+
+        return allSkins.stream()
+                .map(skin -> toSkinInfo(skin, ownedSkinIds.contains(skin.getId())))
+                .toList();
     }
 
     private User getUserOrThrow(Long userId) {
