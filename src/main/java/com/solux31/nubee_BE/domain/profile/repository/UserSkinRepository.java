@@ -1,6 +1,6 @@
 package com.solux31.nubee_BE.domain.profile.repository;
 
-import com.solux31.nubee_BE.domain.profile.entity.UserSkin;
+import com.solux31.nubee_BE.domain.profile.entity.mapping.UserSkin;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

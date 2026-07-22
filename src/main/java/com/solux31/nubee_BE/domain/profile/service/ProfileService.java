@@ -5,7 +5,7 @@ import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.profile.dto.ProfileReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.ProfileResDTO;
 import com.solux31.nubee_BE.domain.profile.entity.Skin;
-import com.solux31.nubee_BE.domain.profile.entity.UserSkin;
+import com.solux31.nubee_BE.domain.profile.entity.mapping.UserSkin;
 import com.solux31.nubee_BE.domain.profile.entity.UserStreak;
 import com.solux31.nubee_BE.domain.profile.exception.ProfileException;
 import com.solux31.nubee_BE.domain.profile.exception.code.ProfileErrorCode;

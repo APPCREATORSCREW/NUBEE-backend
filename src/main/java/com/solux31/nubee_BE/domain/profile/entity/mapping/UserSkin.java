@@ -1,6 +1,7 @@
-package com.solux31.nubee_BE.domain.profile.entity;
+package com.solux31.nubee_BE.domain.profile.entity.mapping;
 
 import com.solux31.nubee_BE.domain.auth.entity.User;
+import com.solux31.nubee_BE.domain.profile.entity.Skin;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
