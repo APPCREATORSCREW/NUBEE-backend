@@ -1,7 +1,12 @@
 package com.solux31.nubee_BE.domain.profile.controller;
 
-import com.solux31.nubee_BE.domain.profile.dto.ProfileReqDTO;
-import com.solux31.nubee_BE.domain.profile.dto.ProfileResDTO;
+import com.solux31.nubee_BE.domain.profile.dto.Request.ProfileImageUpdateReqDTO;
+import com.solux31.nubee_BE.domain.profile.dto.Request.SettingUpdateReqDTO;
+import com.solux31.nubee_BE.domain.profile.dto.Request.SkinApplyReqDTO;
+import com.solux31.nubee_BE.domain.profile.dto.Response.ProfileImageResDTO;
+import com.solux31.nubee_BE.domain.profile.dto.Response.ProfileResDTO;
+import com.solux31.nubee_BE.domain.profile.dto.Response.SettingsResDTO;
+import com.solux31.nubee_BE.domain.profile.dto.Response.SkinApplyResDTO;
 import com.solux31.nubee_BE.domain.profile.exception.code.ProfileSuccessCode;
 import com.solux31.nubee_BE.domain.profile.service.ProfileService;
 import com.solux31.nubee_BE.global.apiPayload.ApiResponse;
@@ -17,108 +22,95 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "프로필", description = "프로필 조회 및 설정 관련 API")
+@SecurityRequirement(name = "JWT TOKEN")
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class ProfileController {
+
     private final ProfileService profileService;
 
-    @Operation(
-            summary = "프로필 조회",
-            description = "로그인한 유저의 프로필 정보(닉네임, 이메일, 레벨, 포인트, 연속학습일수, 현재 스킨, 보유 스킨 목록)를 조회합니다."
-    )
+    @Operation(summary = "프로필 조회", description = "로그인한 유저의 프로필 정보를 조회합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "프로필 조회 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패 (토큰 없음 또는 만료)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/profile")
-    public ResponseEntity<ApiResponse<ProfileResDTO.Profile>> getProfile(
+    public ResponseEntity<ApiResponse<ProfileResDTO>> getProfile(
             @AuthenticationPrincipal AuthUser authUser
     ) {
-        ProfileResDTO.Profile profile = profileService.getProfile(authUser.getUserId());
+        ProfileResDTO profile = profileService.getProfile(authUser.getUserId());
         return ResponseEntity.ok(
                 ApiResponse.onSuccess(ProfileSuccessCode.PROFILE_FETCH_SUCCESS, profile)
         );
     }
 
-    @Operation(
-            summary = "학습 설정 조회",
-            description = "로그인한 유저의 학습 설정(하루 학습 키워드 수, 알림 여부, 알림 시간)을 조회합니다."
-    )
+    @Operation(summary = "학습 설정 조회", description = "로그인한 유저의 학습 설정을 조회합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "학습 설정 조회 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패 (토큰 없음 또는 만료)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @GetMapping("/settings")
-    public ResponseEntity<ApiResponse<ProfileResDTO.Settings>> getSettings(
+    public ResponseEntity<ApiResponse<SettingsResDTO>> getSettings(
             @AuthenticationPrincipal AuthUser authUser
     ) {
-        ProfileResDTO.Settings settings = profileService.getSettings(authUser.getUserId());
+        SettingsResDTO settings = profileService.getSettings(authUser.getUserId());
         return ResponseEntity.ok(
                 ApiResponse.onSuccess(ProfileSuccessCode.SETTINGS_FETCH_SUCCESS, settings)
         );
     }
 
-    @Operation(
-            summary = "학습 설정 수정",
-            description = "하루 학습 키워드 수(최대 6개), 학습 알림 여부 및 알림 시간을 수정합니다."
-    )
+    @Operation(summary = "학습 설정 수정", description = "키워드 개수, 알림 여부/시간을 수정합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "학습 설정 수정 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청 (키워드 개수 범위 초과 등)"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패 (토큰 없음 또는 토큰 만료"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PatchMapping("/settings")
-    public ResponseEntity<ApiResponse<ProfileResDTO.Settings>> updateSettings(
+    public ResponseEntity<ApiResponse<SettingsResDTO>> updateSettings(
             @AuthenticationPrincipal AuthUser authUser,
-            @Valid @RequestBody ProfileReqDTO.SettingUpdate request
+            @Valid @RequestBody SettingUpdateReqDTO request
     ) {
-        ProfileResDTO.Settings settings = profileService.updateSettings(authUser.getUserId(), request);
+        SettingsResDTO settings = profileService.updateSettings(authUser.getUserId(), request);
         return ResponseEntity.ok(
                 ApiResponse.onSuccess(ProfileSuccessCode.SETTINGS_UPDATE_SUCCESS, settings)
         );
     }
 
-    @Operation(
-            summary = "스킨 적용",
-            description = "보유한 스킨 중에서만 선택 가능하며, 선택 시 User의 현재 스킨(current_skin_id)이 갱신됩니다."
-    )
+    @Operation(summary = "스킨 적용", description = "보유한 스킨 중에서만 선택 가능합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "스킨 적용 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "보유하지 않은 스킨 선택 또는 존재하지 않는 스킨"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패 (토큰 없음 또는 만료)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "보유하지 않은 스킨"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PatchMapping("/skin")
-    public ResponseEntity<ApiResponse<ProfileResDTO.SkinApply>> applySkin(
+    public ResponseEntity<ApiResponse<SkinApplyResDTO>> applySkin(
             @AuthenticationPrincipal AuthUser authUser,
-            @RequestBody ProfileReqDTO.SkinApply request
+            @RequestBody SkinApplyReqDTO request
     ) {
-        ProfileResDTO.SkinApply result = profileService.applySkin(authUser.getUserId(), request);
+        SkinApplyResDTO result = profileService.applySkin(authUser.getUserId(), request);
         return ResponseEntity.ok(
                 ApiResponse.onSuccess(ProfileSuccessCode.SKIN_APPLY_SUCCESS, result)
         );
     }
 
-    @Operation(
-            summary = "프로필 이미지 변경",
-            description = "유저가 갤러리에서 선택한 이미지의 URL을 받아 프로필 이미지를 변경합니다."
-    )
+    @Operation(summary = "프로필 이미지 변경", description = "유저가 선택한 이미지의 URL을 받아 프로필 이미지를 변경합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "프로필 이미지 변경 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청 (URL 형식 오류 등)"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패 (토큰 없음 또는 만료)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "잘못된 요청"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
     })
     @PatchMapping("/profile-image")
-    public ResponseEntity<ApiResponse<ProfileResDTO.ProfileImage>> updateProfileImage(
+    public ResponseEntity<ApiResponse<ProfileImageResDTO>> updateProfileImage(
             @AuthenticationPrincipal AuthUser authUser,
-            @Valid @RequestBody ProfileReqDTO.ProfileImageUpdate request
+            @Valid @RequestBody ProfileImageUpdateReqDTO request
     ) {
-        ProfileResDTO.ProfileImage result = profileService.updateProfileImage(authUser.getUserId(), request);
+        ProfileImageResDTO result = profileService.updateProfileImage(authUser.getUserId(), request);
         return ResponseEntity.ok(
                 ApiResponse.onSuccess(ProfileSuccessCode.PROFILE_IMAGE_UPDATE_SUCCESS, result)
         );
