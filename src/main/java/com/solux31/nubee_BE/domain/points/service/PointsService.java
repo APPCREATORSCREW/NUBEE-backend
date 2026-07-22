@@ -4,8 +4,9 @@ import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
 import com.solux31.nubee_BE.domain.auth.exception.AuthException;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
-import com.solux31.nubee_BE.domain.points.converter.PointsConverter;
-import com.solux31.nubee_BE.domain.points.dto.PointsResDTO;
+import com.solux31.nubee_BE.domain.points.dto.Response.NewSkinInfoResDTO;
+import com.solux31.nubee_BE.domain.points.dto.Response.PointInfoResDTO;
+import com.solux31.nubee_BE.domain.points.dto.Response.PointResultResDTO;
 import com.solux31.nubee_BE.domain.points.entity.PointHistory;
 import com.solux31.nubee_BE.domain.points.exception.PointsException;
 import com.solux31.nubee_BE.domain.points.exception.code.PointsErrorCode;
@@ -19,6 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -30,15 +33,14 @@ public class PointsService {
     private final PointsRepository pointsRepository;
     private final SkinRepository skinRepository;
     private final UserSkinRepository userSkinRepository;
-    private final PointsConverter pointsConverter;
 
-    public PointsResDTO.PointInfo getPoints(Long userId) {
+    public PointInfoResDTO getPoints(Long userId) {
         User user = getUserOrThrow(userId);
-        return pointsConverter.toPointInfo(user);
+        return toPointInfo(user);
     }
 
     @Transactional
-    public PointsResDTO.PointResult addPoint(Long userId, int amount, String reason) {
+    public PointResultResDTO addPoint(Long userId, int amount, String reason) {
         if (amount < 0) {
             throw new PointsException(PointsErrorCode.INVALID_AMOUNT);
         }
@@ -48,48 +50,48 @@ public class PointsService {
 
         User user = getUserOrThrow(userId);
 
-        //적립 내역 기록
         pointsRepository.save(PointHistory.builder()
                 .user(user)
                 .amount(amount)
                 .reason(reason)
                 .build());
 
-        //포인트 적립
         user.updatePoint(amount);
 
         boolean leveledUp = false;
-        Skin newSkin = null;
+        List<Skin> newSkins = new ArrayList<>();
 
-        //50포인트마다 레벨업
         while (user.getPoint() >= LEVEL_UP_THRESHOLD) {
-            user.updatePoint(-LEVEL_UP_THRESHOLD); // 50 차감 (초과분은 이월)
+            user.updatePoint(-LEVEL_UP_THRESHOLD);
             int newLevel = user.getCurrentLevel() + 1;
             user.updateLevel(newLevel);
             leveledUp = true;
 
-            // 5레벨마다 스킨 지급
             if (newLevel % SKIN_GRANT_LEVEL_UNIT == 0) {
-                newSkin = grantSkinForLevel(user, newLevel);
+                Skin granted = grantSkinForLevel(user, newLevel);
+                if (granted != null) {
+                    newSkins.add(granted);
+                }
             }
         }
 
-        return PointsResDTO.PointResult.builder()
+        return PointResultResDTO.builder()
                 .earnedPoint(amount)
                 .currentPoint(user.getPoint())
                 .leveledUp(leveledUp)
                 .currentLevel(user.getCurrentLevel())
-                .newSkin(pointsConverter.toNewSkinInfo(newSkin))
+                .newSkins(newSkins.stream()
+                        .map(this::toNewSkinInfo)
+                        .toList())
                 .build();
     }
 
-    // 레벨에 맞는 스킨 지급 (이미 보유중이면 스킵)
     private Skin grantSkinForLevel(User user, int level) {
         Skin skin = skinRepository.findByRequiredLevel(level)
                 .orElse(null);
 
         if (skin == null) {
-            return null; // 해당 레벨에 지급할 스킨이 카탈로그에 없으면 무시
+            return null;
         }
 
         boolean alreadyOwned = userSkinRepository.existsByUserIdAndSkinId(user.getId(), skin.getId());
@@ -105,6 +107,20 @@ public class PointsService {
                 .build());
 
         return skin;
+    }
+
+    private PointInfoResDTO toPointInfo(User user) {
+        return PointInfoResDTO.builder()
+                .currentPoint(user.getPoint())
+                .currentLevel(user.getCurrentLevel())
+                .build();
+    }
+
+    private NewSkinInfoResDTO toNewSkinInfo(Skin skin) {
+        return NewSkinInfoResDTO.builder()
+                .skinId(skin.getId())
+                .skinName(skin.getSkinName())
+                .build();
     }
 
     private User getUserOrThrow(Long userId) {
