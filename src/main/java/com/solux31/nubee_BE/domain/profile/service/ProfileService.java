@@ -45,6 +45,9 @@ public class ProfileService {
     private final UserStreakRepository userStreakRepository;
     private final S3Presigner s3Presigner;
 
+    @Value("${aws.s3.region:ap-northeast-2}")
+    private String region;
+
     @Value("${aws.s3.bucket}")
     private String bucket;
 
@@ -221,7 +224,6 @@ public class ProfileService {
         PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
 
         // 7. S3 Public URL 생성
-        String region = "ap-northeast-2";
         String fileUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", bucket, region, key);
 
         return PresignedUrlResDTO.builder()
