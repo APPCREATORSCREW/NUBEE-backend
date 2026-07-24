@@ -19,6 +19,7 @@ import com.solux31.nubee_BE.domain.profile.repository.UserSkinRepository;
 import com.solux31.nubee_BE.domain.profile.repository.UserStreakRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -40,6 +41,8 @@ public class ProfileService {
     private final SkinRepository skinRepository;
     private final UserStreakRepository userStreakRepository;
     private final S3Presigner s3Presigner;
+
+    @Value("${aws.s3.bucket}")
     private String bucket;
 
     public ProfileResDTO getProfile(Long userId) {
