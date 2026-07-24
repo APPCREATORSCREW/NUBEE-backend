@@ -9,7 +9,9 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum ProfileErrorCode implements BaseErrorCode {
     SKIN_NOT_OWNED(HttpStatus.BAD_REQUEST, "PROFILE400", "보유하지 않은 스킨입니다."),
-    SKIN_NOT_FOUND(HttpStatus.BAD_REQUEST, "PROFILE401", "존재하지 않는 스킨입니다.");
+    SKIN_NOT_FOUND(HttpStatus.BAD_REQUEST, "PROFILE401", "존재하지 않는 스킨입니다."),
+    INVALID_FILE_NAME(HttpStatus.BAD_REQUEST, "PROFILE402", "유효하지 않거나 너무 긴 파일명입니다."),
+    INVALID_FILE_EXTENSION(HttpStatus.BAD_REQUEST, "PROFILE403", "유효하지 않은 파일 확장자입니다.");
 
     private final HttpStatus status;
     private final String code;

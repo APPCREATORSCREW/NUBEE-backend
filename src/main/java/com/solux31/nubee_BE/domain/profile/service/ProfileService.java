@@ -21,11 +21,14 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalTime;
 import java.util.List;
@@ -159,8 +162,32 @@ public class ProfileService {
     }
 
     public PresignedUrlResDTO createPresignedUrl(PresignedUrlReqDTO request) {
-        String key = "profile/" + UUID.randomUUID() + "_" + request.getFileName();
+        String originalFileName = request.getFileName();
 
+        // 1. 파일명 길이 검증 (S3 Object Key 최대 1,024바이트 제한)
+        if (originalFileName == null || originalFileName.getBytes(StandardCharsets.UTF_8).length > 900) {
+            throw new ProfileException(ProfileErrorCode.INVALID_FILE_NAME); // 적절한 Exception 지정
+        }
+
+        // 2. 확장자 추출 및 검증 (없거나 이상한 문자 방지)
+        String extension = StringUtils.getFilenameExtension(originalFileName);
+        if (extension == null || extension.isBlank()) {
+            throw new ProfileException(ProfileErrorCode.INVALID_FILE_EXTENSION);
+        }
+
+        // 이미지 확장자 목록 정의
+        List<String> allowedExtensions = List.of("png", "jpg", "jpeg", "webp", "gif");
+
+        // 허용되지 않은 확장자인 경우 예외 발생
+        if (!allowedExtensions.contains(extension.toLowerCase())) {
+            throw new ProfileException(ProfileErrorCode.INVALID_FILE_EXTENSION);
+        }
+
+        // 3. Raw Key 생성 (원본 파일명 대신 안전하게 UUID + 확장자만 사용)
+        // 예: profile/550e8400-e29b-41d4-a716-446655440000.png
+        String key = "profile/" + UUID.randomUUID() + "." + extension.toLowerCase();
+
+        // 4. Presigned URL 생성
         PutObjectRequest objectRequest = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
@@ -173,7 +200,13 @@ public class ProfileService {
 
         PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
 
-        String fileUrl = "https://" + bucket + ".s3." + "ap-northeast-2" + ".amazonaws.com/" + key;
+        // 5. 안전한 S3 Public URL 생성 (Key 부분 인코딩)
+        String encodedKey = URLEncoder.encode(key, StandardCharsets.UTF_8)
+                .replace("+", "%20")  // URLEncoder가 공백을 '+'로 바꿀 수 있어 %20으로 치환
+                .replace("%2F", "/"); // 경로 구분자 '/'는 인코딩에서 제외
+
+        String region = "ap-northeast-2"; // 또는 @Value("${aws.region}")으로 들어온 변수
+        String fileUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", bucket, region, encodedKey);
 
         return PresignedUrlResDTO.builder()
                 .uploadUrl(presignedRequest.url().toString())
