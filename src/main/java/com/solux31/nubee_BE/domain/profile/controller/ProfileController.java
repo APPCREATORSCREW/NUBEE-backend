@@ -1,12 +1,10 @@
 package com.solux31.nubee_BE.domain.profile.controller;
 
+import com.solux31.nubee_BE.domain.profile.dto.Request.PresignedUrlReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.Request.ProfileImageUpdateReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.Request.SettingUpdateReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.Request.SkinApplyReqDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.ProfileImageResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.ProfileResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.SettingsResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.SkinApplyResDTO;
+import com.solux31.nubee_BE.domain.profile.dto.Response.*;
 import com.solux31.nubee_BE.domain.profile.exception.code.ProfileSuccessCode;
 import com.solux31.nubee_BE.domain.profile.service.ProfileService;
 import com.solux31.nubee_BE.global.apiPayload.ApiResponse;
@@ -113,6 +111,18 @@ public class ProfileController {
         ProfileImageResDTO result = profileService.updateProfileImage(authUser.getUserId(), request);
         return ResponseEntity.ok(
                 ApiResponse.onSuccess(ProfileSuccessCode.PROFILE_IMAGE_UPDATE_SUCCESS, result)
+        );
+    }
+
+    @Operation(summary = "프로필 이미지 업로드용 presigned URL 발급", description = "S3에 직접 업로드할 수 있는 임시 URL을 발급합니다.")
+    @PostMapping("/profile-image/presigned-url")
+    public ResponseEntity<ApiResponse<PresignedUrlResDTO>> createPresignedUrl(
+            @AuthenticationPrincipal AuthUser authUser,
+            @Valid @RequestBody PresignedUrlReqDTO request
+    ) {
+        PresignedUrlResDTO result = profileService.createPresignedUrl(request);
+        return ResponseEntity.ok(
+                ApiResponse.onSuccess(ProfileSuccessCode.PRESIGNED_URL_SUCCESS, result)
         );
     }
 }

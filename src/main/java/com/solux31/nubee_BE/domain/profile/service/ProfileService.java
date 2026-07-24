@@ -4,14 +4,11 @@ import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.exception.AuthException;
 import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
+import com.solux31.nubee_BE.domain.profile.dto.Request.PresignedUrlReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.Request.ProfileImageUpdateReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.Request.SettingUpdateReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.Request.SkinApplyReqDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.ProfileImageResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.ProfileResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.SettingsResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.SkinApplyResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.SkinInfoResDTO;
+import com.solux31.nubee_BE.domain.profile.dto.Response.*;
 import com.solux31.nubee_BE.domain.profile.entity.Skin;
 import com.solux31.nubee_BE.domain.profile.entity.mapping.UserSkin;
 import com.solux31.nubee_BE.domain.profile.entity.UserStreak;
@@ -23,10 +20,16 @@ import com.solux31.nubee_BE.domain.profile.repository.UserStreakRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.time.Duration;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,6 +39,8 @@ public class ProfileService {
     private final UserSkinRepository userSkinRepository;
     private final SkinRepository skinRepository;
     private final UserStreakRepository userStreakRepository;
+    private final S3Presigner s3Presigner;
+    private String bucket;
 
     public ProfileResDTO getProfile(Long userId) {
         User user = getUserOrThrow(userId);
@@ -148,6 +153,29 @@ public class ProfileService {
         return allSkins.stream()
                 .map(skin -> toSkinInfo(skin, ownedSkinIds.contains(skin.getId())))
                 .toList();
+    }
+
+    public PresignedUrlResDTO createPresignedUrl(PresignedUrlReqDTO request) {
+        String key = "profile/" + UUID.randomUUID() + "_" + request.getFileName();
+
+        PutObjectRequest objectRequest = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build();
+
+        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofMinutes(10))
+                .putObjectRequest(objectRequest)
+                .build();
+
+        PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
+
+        String fileUrl = "https://" + bucket + ".s3." + "ap-northeast-2" + ".amazonaws.com/" + key;
+
+        return PresignedUrlResDTO.builder()
+                .uploadUrl(presignedRequest.url().toString())
+                .fileUrl(fileUrl)
+                .build();
     }
 
     private User getUserOrThrow(Long userId) {
