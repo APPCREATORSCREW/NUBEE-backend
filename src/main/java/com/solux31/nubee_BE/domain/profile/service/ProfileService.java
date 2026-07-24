@@ -163,6 +163,8 @@ public class ProfileService {
 
     public PresignedUrlResDTO createPresignedUrl(PresignedUrlReqDTO request) {
         String originalFileName = request.getFileName();
+        String contentType = request.getContentType();
+        Long contentLength = request.getContentLength();
 
         // 1. 파일명 길이 검증 (S3 Object Key 최대 1,024바이트 제한)
         if (originalFileName == null || originalFileName.getBytes(StandardCharsets.UTF_8).length > 900) {
@@ -183,14 +185,32 @@ public class ProfileService {
             throw new ProfileException(ProfileErrorCode.INVALID_FILE_EXTENSION);
         }
 
-        // 3. Raw Key 생성 (원본 파일명 대신 안전하게 UUID + 확장자만 사용)
-        // 예: profile/550e8400-e29b-41d4-a716-446655440000.png
+        // 3. Content-Type (MIME 타입) 검증
+        List<String> allowedContentTypes = List.of(
+                "image/png",
+                "image/jpeg",
+                "image/webp",
+                "image/gif"
+        );
+        if (contentType == null || !allowedContentTypes.contains(contentType.toLowerCase())) {
+            throw new ProfileException(ProfileErrorCode.INVALID_CONTENT_TYPE);
+        }
+
+        // 4. 파일 크기 제한 검증 (예: 최대 5MB 제한)
+        long maxFileSize = 5 * 1024 * 1024; // 5MB
+        if (contentLength == null || contentLength <= 0 || contentLength > maxFileSize) {
+            throw new ProfileException(ProfileErrorCode.EXCEEDED_MAX_FILE_SIZE);
+        }
+
+        // 5. Raw Key 생성
         String key = "profile/" + UUID.randomUUID() + "." + extension.toLowerCase();
 
-        // 4. Presigned URL 생성
+        // 6. Presigned URL 생성 (ContentType 및 ContentLength 제약 조건 추가)
         PutObjectRequest objectRequest = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
+                .contentType(contentType)       // 💡 S3 업로드 시 Content-Type 강제
+                .contentLength(contentLength)   // 💡 S3 업로드 시 파일 크기 강제
                 .build();
 
         PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
@@ -200,13 +220,9 @@ public class ProfileService {
 
         PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
 
-        // 5. 안전한 S3 Public URL 생성 (Key 부분 인코딩)
-        String encodedKey = URLEncoder.encode(key, StandardCharsets.UTF_8)
-                .replace("+", "%20")  // URLEncoder가 공백을 '+'로 바꿀 수 있어 %20으로 치환
-                .replace("%2F", "/"); // 경로 구분자 '/'는 인코딩에서 제외
-
-        String region = "ap-northeast-2"; // 또는 @Value("${aws.region}")으로 들어온 변수
-        String fileUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", bucket, region, encodedKey);
+        // 7. S3 Public URL 생성
+        String region = "ap-northeast-2";
+        String fileUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", bucket, region, key);
 
         return PresignedUrlResDTO.builder()
                 .uploadUrl(presignedRequest.url().toString())
