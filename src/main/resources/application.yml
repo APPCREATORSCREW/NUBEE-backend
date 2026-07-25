@@ -66,3 +66,10 @@ naver:
     client-id: ${NAVER_CLIENT_ID}  # 네이버에서 받은 Client ID
     client-secret: ${NAVER_CLIENT_SECRET} # 네이버에서 받은 Client Secret
     url: https://openapi.naver.com/v1/search/news.json
+
+aws:
+  access-key: ${AWS_ACCESS_KEY_ID}
+  secret-key: ${AWS_SECRET_ACCESS_KEY}
+  s3:
+    bucket: ${AWS_S3_BUCKET}
+    region: ${AWS_REGION}

@@ -4,14 +4,11 @@ import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.exception.AuthException;
 import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
+import com.solux31.nubee_BE.domain.profile.dto.Request.PresignedUrlReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.Request.ProfileImageUpdateReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.Request.SettingUpdateReqDTO;
 import com.solux31.nubee_BE.domain.profile.dto.Request.SkinApplyReqDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.ProfileImageResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.ProfileResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.SettingsResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.SkinApplyResDTO;
-import com.solux31.nubee_BE.domain.profile.dto.Response.SkinInfoResDTO;
+import com.solux31.nubee_BE.domain.profile.dto.Response.*;
 import com.solux31.nubee_BE.domain.profile.entity.Skin;
 import com.solux31.nubee_BE.domain.profile.entity.mapping.UserSkin;
 import com.solux31.nubee_BE.domain.profile.entity.UserStreak;
@@ -22,11 +19,21 @@ import com.solux31.nubee_BE.domain.profile.repository.UserSkinRepository;
 import com.solux31.nubee_BE.domain.profile.repository.UserStreakRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,6 +43,13 @@ public class ProfileService {
     private final UserSkinRepository userSkinRepository;
     private final SkinRepository skinRepository;
     private final UserStreakRepository userStreakRepository;
+    private final S3Presigner s3Presigner;
+
+    @Value("${aws.s3.region:ap-northeast-2}")
+    private String region;
+
+    @Value("${aws.s3.bucket}")
+    private String bucket;
 
     public ProfileResDTO getProfile(Long userId) {
         User user = getUserOrThrow(userId);
@@ -148,6 +162,74 @@ public class ProfileService {
         return allSkins.stream()
                 .map(skin -> toSkinInfo(skin, ownedSkinIds.contains(skin.getId())))
                 .toList();
+    }
+
+    public PresignedUrlResDTO createPresignedUrl(PresignedUrlReqDTO request) {
+        String originalFileName = request.getFileName();
+        String contentType = request.getContentType();
+        Long contentLength = request.getContentLength();
+
+        // 1. 파일명 길이 검증 (S3 Object Key 최대 1,024바이트 제한)
+        if (originalFileName == null || originalFileName.getBytes(StandardCharsets.UTF_8).length > 900) {
+            throw new ProfileException(ProfileErrorCode.INVALID_FILE_NAME); // 적절한 Exception 지정
+        }
+
+        // 2. 확장자 추출 및 검증 (없거나 이상한 문자 방지)
+        String extension = StringUtils.getFilenameExtension(originalFileName);
+        if (extension == null || extension.isBlank()) {
+            throw new ProfileException(ProfileErrorCode.INVALID_FILE_EXTENSION);
+        }
+
+        // 이미지 확장자 목록 정의
+        List<String> allowedExtensions = List.of("png", "jpg", "jpeg", "webp", "gif");
+
+        // 허용되지 않은 확장자인 경우 예외 발생
+        if (!allowedExtensions.contains(extension.toLowerCase())) {
+            throw new ProfileException(ProfileErrorCode.INVALID_FILE_EXTENSION);
+        }
+
+        // 3. Content-Type (MIME 타입) 검증
+        List<String> allowedContentTypes = List.of(
+                "image/png",
+                "image/jpeg",
+                "image/webp",
+                "image/gif"
+        );
+        if (contentType == null || !allowedContentTypes.contains(contentType.toLowerCase())) {
+            throw new ProfileException(ProfileErrorCode.INVALID_CONTENT_TYPE);
+        }
+
+        // 4. 파일 크기 제한 검증 (예: 최대 5MB 제한)
+        long maxFileSize = 5 * 1024 * 1024; // 5MB
+        if (contentLength == null || contentLength <= 0 || contentLength > maxFileSize) {
+            throw new ProfileException(ProfileErrorCode.EXCEEDED_MAX_FILE_SIZE);
+        }
+
+        // 5. Raw Key 생성
+        String key = "profile/" + UUID.randomUUID() + "." + extension.toLowerCase();
+
+        // 6. Presigned URL 생성 (ContentType 및 ContentLength 제약 조건 추가)
+        PutObjectRequest objectRequest = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType(contentType)       // 💡 S3 업로드 시 Content-Type 강제
+                .contentLength(contentLength)   // 💡 S3 업로드 시 파일 크기 강제
+                .build();
+
+        PutObjectPresignRequest presignRequest = PutObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofMinutes(10))
+                .putObjectRequest(objectRequest)
+                .build();
+
+        PresignedPutObjectRequest presignedRequest = s3Presigner.presignPutObject(presignRequest);
+
+        // 7. S3 Public URL 생성
+        String fileUrl = String.format("https://%s.s3.%s.amazonaws.com/%s", bucket, region, key);
+
+        return PresignedUrlResDTO.builder()
+                .uploadUrl(presignedRequest.url().toString())
+                .fileUrl(fileUrl)
+                .build();
     }
 
     private User getUserOrThrow(Long userId) {
