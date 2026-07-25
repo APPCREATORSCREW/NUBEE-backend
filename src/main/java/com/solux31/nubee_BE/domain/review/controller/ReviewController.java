@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "복습", description = "뉴스 다시보기 관련 API")
+@Tag(name = "복습 API", description = "뉴스 다시보기 관련 API")
 @SecurityRequirement(name = "JWT TOKEN")
 @RestController
 @RequestMapping("/api/news")

@@ -16,7 +16,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/words")
 @RequiredArgsConstructor
-@Tag(name = "UserKeyword API", description = "단어장 API")
+@Tag(name = "단어장 API", description = "유저 단어장 API")
 public class UserKeywordController {
 
     private final UserKeywordService userKeywordServiceService;

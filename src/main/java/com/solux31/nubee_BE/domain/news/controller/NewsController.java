@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-@Tag(name = "News API", description = "오늘의 뉴스 리스트, 상세 정보, 뉴스 및 키워드 독해 퀴즈 관련 API")
+@Tag(name = "뉴스 API", description = "오늘의 뉴스 리스트, 상세 정보, 뉴스 및 키워드 독해 퀴즈 관련 API")
 @RestController
 @RequestMapping("/api/news")
 @RequiredArgsConstructor
