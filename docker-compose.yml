@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   app:
+    container_name: nubee-server
     build: .
     ports:
       - "8082:8082"
