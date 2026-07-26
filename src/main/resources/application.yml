@@ -53,7 +53,7 @@ front:
   url: ${FRONT_URL}
 
 server:
-  port: 8082
+  port: 8080
 
 llm:
   gateway:
