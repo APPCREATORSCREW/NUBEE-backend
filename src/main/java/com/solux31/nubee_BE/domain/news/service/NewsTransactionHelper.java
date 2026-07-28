@@ -200,6 +200,10 @@ public class NewsTransactionHelper {
                 "You are an AI content generator and a friendly teacher for elementary school students (3rd-4th grade).\n" +
                         "Analyze the provided [News Link] and [Alternative Text] below. You must reply strictly in the specified JSON format.\n\n" +
 
+                        "[FORMAT CONSTRAINTS]\n" +
+                        "- Keep paragraph breaks (\\n\\n).\n" +
+                        "- Do NOT use any Markdown (e.g., **, *, #). Output pure plain text only.\n\n" +
+
                         "[CRITICAL CRITERIA FOR KEYWORD EXTRACTION]\n" +
                         "- 🚨 Current Category: [%s]\n" +
                         "- Target Vocabulary: Main (`mainKeyword`) and sub-keywords (`subKeywords`) MUST strictly belong to the academic/academic domain of this [%s] field.\n" +

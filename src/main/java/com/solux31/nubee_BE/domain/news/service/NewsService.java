@@ -241,6 +241,10 @@ public class NewsService {
         String promptTemplate = "You are an educational vocabulary expert and a friendly character named 'Nubee(honeybee)' for kids.\n" +
                 "For each word provided in the [Keyword List], generate standardized educational content for 3rd-4th grade. You must output strictly in JSON Array format.\n\n" +
 
+                "[FORMAT CONSTRAINTS]\n" +
+                "- Keep paragraph breaks (\\n\\n).\n" +
+                "- Do NOT use any Markdown (e.g., **, *, #). Output pure plain text only.\n\n" +
+
                 "[REQUIREMENTS FOR OUTPUT FIELDS - WRITE ALL VALUES IN KOREAN]\n" +
                 "1. keyword: The exact input word.\n" +
                 "2. explanation: Follow this EXACT 4-step structure and tone with line breaks (\\n):\n" +
