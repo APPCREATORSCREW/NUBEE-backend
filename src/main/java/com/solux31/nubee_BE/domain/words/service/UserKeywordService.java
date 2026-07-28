@@ -9,6 +9,7 @@ import com.solux31.nubee_BE.domain.words.exception.WordsException;
 import com.solux31.nubee_BE.domain.words.exception.code.WordsErrorCode;
 import com.solux31.nubee_BE.domain.words.repository.KeywordRepository;
 import com.solux31.nubee_BE.domain.words.repository.UserKeywordRepository;
+import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,10 +27,13 @@ public class UserKeywordService {
 
     // 단어 리스트 조회
     @Transactional(readOnly = true)
-    public List<WordsResDTO> getWords(Long userId) {
-        return userKeywordRepository.findByUserId(userId)
-                .stream()
-                .map(uk -> new WordsResDTO(
+    public WordsResDTO getWords(Long userId) {
+        List<UserKeyword> allKeywords = userKeywordRepository.findByUserId(userId);
+        LocalDate today = LocalDate.now();
+
+        List<WordsResDTO.WordItem> todayWords = allKeywords.stream()
+                .filter(uk -> uk.getCreatedAt().toLocalDate().equals(today))
+                .map(uk -> new WordsResDTO.WordItem(
                         uk.getId(),
                         uk.getKeyword().getId(),
                         uk.getKeyword().getWord(),
@@ -37,6 +41,19 @@ public class UserKeywordService {
                         uk.getKeyword().getExampleSentence()
                 ))
                 .collect(Collectors.toList());
+
+        List<WordsResDTO.WordItem> previousWords = allKeywords.stream()
+                .filter(uk -> uk.getCreatedAt().toLocalDate().isBefore(today))
+                .map(uk -> new WordsResDTO.WordItem(
+                        uk.getId(),
+                        uk.getKeyword().getId(),
+                        uk.getKeyword().getWord(),
+                        uk.getKeyword().getExplanation(),
+                        uk.getKeyword().getExampleSentence()
+                ))
+                .collect(Collectors.toList());
+
+        return new WordsResDTO(todayWords, previousWords);
     }
 
     // 단어 삭제
