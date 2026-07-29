@@ -1,7 +1,7 @@
 services:
   app:
     container_name: nubee-server
-    build: .
+    image: ghcr.io/appcreatorscrew/nubee-backend:latest
     ports:
       - "8080:8082"
     environment:
@@ -22,4 +22,5 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET}
       - AWS_REGION=${AWS_REGION}
+      - SERVER_URL=${SERVER_URL}
     restart: always
