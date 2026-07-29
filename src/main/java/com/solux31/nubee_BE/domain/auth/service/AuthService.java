@@ -308,7 +308,7 @@ public class AuthService {
         String code = emailService.generateCode();
 
         int sendCount = emailVerificationRedisRepository.increaseSendCountAtomic(
-                EmailVerificationType.PASSWORD_RESET, request.getParentEmail(), code);
+                EmailVerificationType.PARENT_VERIFY, request.getParentEmail(), code);
         if (sendCount == -1) {
             throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
         }
