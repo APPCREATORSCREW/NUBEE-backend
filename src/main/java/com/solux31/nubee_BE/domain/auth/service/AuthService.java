@@ -188,14 +188,13 @@ public class AuthService {
         User user = userRepository.findById(Long.parseLong(userId))
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
 
-        // 기존 Refresh Token 삭제
-        refreshTokenRedisRepository.deleteByUserId(user.getId());
-
         // 새 토큰 발급
         String newAccessToken = jwtUtil.generateAccessToken(user.getEmail());
         String newRefreshToken = jwtUtil.generateRefreshToken(user.getEmail());
 
-        saveRefreshToken(user, newRefreshToken);
+        // 원자적 토큰 회전
+        String newHashedToken = hashToken(newRefreshToken);
+        refreshTokenRedisRepository.rotateToken(user.getId(), hashedToken, newHashedToken);
 
         return new TokenRefreshResDTO(newAccessToken, newRefreshToken);
     }
@@ -241,14 +240,10 @@ public class AuthService {
 
         String code = emailService.generateCode();
 
-        if (emailVerificationRedisRepository.exists(EmailVerificationType.PASSWORD_RESET, request.getEmail())) {
-            int sendCount = emailVerificationRedisRepository.getSendCount(EmailVerificationType.PASSWORD_RESET, request.getEmail());
-            if (sendCount >= 5) {
-                throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
-            }
-            emailVerificationRedisRepository.increaseSendCount(EmailVerificationType.PASSWORD_RESET, request.getEmail(), code);
-        } else {
-            emailVerificationRedisRepository.save(EmailVerificationType.PASSWORD_RESET, request.getEmail(), code);
+        int sendCount = emailVerificationRedisRepository.increaseSendCountAtomic(
+                EmailVerificationType.PASSWORD_RESET, request.getEmail(), code);
+        if (sendCount == -1) {
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
         }
 
         eventPublisher.publishEvent(
@@ -268,6 +263,12 @@ public class AuthService {
         }
 
         String storedCode = emailVerificationRedisRepository.findCode(EmailVerificationType.PASSWORD_RESET, request.getEmail());
+
+        // null 체크 추가
+        if (storedCode == null) {
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_NOT_FOUND);
+        }
+
         if (!storedCode.equals(request.getCode())) {
             emailVerificationService.increaseFailCount(EmailVerificationType.PASSWORD_RESET, request.getEmail());
             throw new AuthException(AuthErrorCode.EMAIL_CODE_MISMATCH);
@@ -306,14 +307,10 @@ public class AuthService {
 
         String code = emailService.generateCode();
 
-        if (emailVerificationRedisRepository.exists(EmailVerificationType.PARENT_VERIFY, request.getParentEmail())) {
-            int sendCount = emailVerificationRedisRepository.getSendCount(EmailVerificationType.PARENT_VERIFY, request.getParentEmail());
-            if (sendCount >= 5) {
-                throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
-            }
-            emailVerificationRedisRepository.increaseSendCount(EmailVerificationType.PARENT_VERIFY, request.getParentEmail(), code);
-        } else {
-            emailVerificationRedisRepository.save(EmailVerificationType.PARENT_VERIFY, request.getParentEmail(), code);
+        int sendCount = emailVerificationRedisRepository.increaseSendCountAtomic(
+                EmailVerificationType.PASSWORD_RESET, request.getParentEmail(), code);
+        if (sendCount == -1) {
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
         }
 
         eventPublisher.publishEvent(
@@ -333,6 +330,12 @@ public class AuthService {
         }
 
         String storedCode = emailVerificationRedisRepository.findCode(EmailVerificationType.PARENT_VERIFY, request.getParentEmail());
+
+        // null 체크 추가
+        if (storedCode == null) {
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_NOT_FOUND);
+        }
+
         if (!storedCode.equals(request.getCode())) {
             emailVerificationService.increaseFailCount(EmailVerificationType.PARENT_VERIFY, request.getParentEmail());
             throw new AuthException(AuthErrorCode.EMAIL_CODE_MISMATCH);

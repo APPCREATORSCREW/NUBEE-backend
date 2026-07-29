@@ -1,8 +1,10 @@
 package com.solux31.nubee_BE.domain.auth.repository;
 
 import com.solux31.nubee_BE.domain.auth.enums.EmailVerificationType;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 
 import java.time.Duration;
@@ -97,5 +99,38 @@ public class EmailVerificationRedisRepository {
         int sendCount = value != null ? Integer.parseInt(value.split(":")[3]) + 1 : 1;
         String newValue = code + ":false:0:" + sendCount;
         redisTemplate.opsForValue().set(key, newValue, Duration.ofSeconds(EMAIL_VERIFICATION_TTL));
+    }
+
+    // Lua 스크립트로 원자적 발송 횟수 체크 + 증가
+    private static final String INCREASE_SEND_COUNT_SCRIPT =
+            "local key = KEYS[1] " +
+                    "local code = ARGV[1] " +
+                    "local ttl = tonumber(ARGV[2]) " +
+                    "local value = redis.call('GET', key) " +
+                    "if value == false then " +
+                    "  redis.call('SET', key, code .. ':false:0:1', 'EX', ttl) " +
+                    "  return 1 " +
+                    "end " +
+                    "local parts = {} " +
+                    "for part in string.gmatch(value, '[^:]+') do " +
+                    "  table.insert(parts, part) " +
+                    "end " +
+                    "local sendCount = tonumber(parts[4]) " +
+                    "if sendCount >= 5 then " +
+                    "  return -1 " +
+                    "end " +
+                    "redis.call('SET', key, code .. ':false:0:' .. (sendCount + 1), 'EX', ttl) " +
+                    "return sendCount + 1";
+
+    // 원자적 발송 횟수 증가
+    public int increaseSendCountAtomic(EmailVerificationType type, String email, String code) {
+        String key = generateKey(type, email);
+        Long result = redisTemplate.execute(
+                new DefaultRedisScript<>(INCREASE_SEND_COUNT_SCRIPT, Long.class),
+                List.of(key),
+                code,
+                String.valueOf(EMAIL_VERIFICATION_TTL)
+        );
+        return result != null ? result.intValue() : 1;
     }
 }

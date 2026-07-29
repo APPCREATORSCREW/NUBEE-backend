@@ -1,7 +1,9 @@
 package com.solux31.nubee_BE.domain.auth.repository;
 
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 
 import java.time.Duration;
@@ -50,5 +52,38 @@ public class RefreshTokenRedisRepository {
             redisTemplate.delete(generateHashKey(tokenHash));
         }
         redisTemplate.delete(generateKey(userId));
+    }
+
+    private static final String ROTATE_TOKEN_SCRIPT =
+            "local userKey = KEYS[1] " +
+                    "local oldHashKey = KEYS[2] " +
+                    "local newUserKey = KEYS[3] " +
+                    "local newHashKey = KEYS[4] " +
+                    "local newHash = ARGV[1] " +
+                    "local ttl = tonumber(ARGV[2]) " +
+                    "local userId = ARGV[3] " +
+                    // 기존 hash 키 삭제
+                    "redis.call('DEL', oldHashKey) " +
+                    // 기존 userId 키 삭제
+                    "redis.call('DEL', userKey) " +
+                    // 새 양방향 키 저장
+                    "redis.call('SET', newUserKey, newHash, 'EX', ttl) " +
+                    "redis.call('SET', newHashKey, userId, 'EX', ttl) " +
+                    "return 1";
+
+    // 원자적 토큰 회전
+    public void rotateToken(Long userId, String oldTokenHash, String newTokenHash) {
+        String userKey = generateKey(userId);
+        String oldHashKey = generateHashKey(oldTokenHash);
+        String newUserKey = generateKey(userId);
+        String newHashKey = generateHashKey(newTokenHash);
+
+        redisTemplate.execute(
+                new DefaultRedisScript<>(ROTATE_TOKEN_SCRIPT, Long.class),
+                List.of(userKey, oldHashKey, newUserKey, newHashKey),
+                newTokenHash,
+                String.valueOf(REFRESH_TOKEN_TTL),
+                String.valueOf(userId)
+        );
     }
 }
