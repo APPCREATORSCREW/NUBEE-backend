@@ -47,5 +47,6 @@ jobs:
           script: |
             echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker pull ghcr.io/appcreatorscrew/nubee-backend:latest
+            cd NUBEE-backend
             docker compose down
             docker compose up -d
