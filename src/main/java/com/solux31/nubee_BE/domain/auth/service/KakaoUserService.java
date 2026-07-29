@@ -1,12 +1,11 @@
 package com.solux31.nubee_BE.domain.auth.service;
 
 import com.solux31.nubee_BE.domain.auth.dto.Response.KakaoLoginResDTO;
-import com.solux31.nubee_BE.domain.auth.entity.RefreshToken;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
 import com.solux31.nubee_BE.domain.auth.exception.AuthException;
 import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
-import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
+import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRedisRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.profile.entity.Skin;
 import com.solux31.nubee_BE.domain.profile.entity.mapping.UserSkin;
@@ -24,11 +23,11 @@ import java.time.LocalDateTime;
 public class KakaoUserService {
 
     private final UserRepository userRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
     private final AuthService authService;
     private final SkinRepository skinRepository;
     private final UserSkinRepository userSkinRepository;
+    private final RefreshTokenRedisRepository refreshTokenRedisRepository;
 
     @Transactional
     public KakaoLoginResDTO processKakaoLogin(String kakaoId, String nickname, String email) {
@@ -49,7 +48,7 @@ public class KakaoUserService {
 
         boolean isNew = isNewArr[0];
 
-        refreshTokenRepository.deleteByUser(user);
+        refreshTokenRedisRepository.deleteByUserId(user.getId());
 
         String accessToken = jwtUtil.generateAccessToken(user.getEmail());
         String refreshToken = jwtUtil.generateRefreshToken(user.getEmail());
@@ -90,11 +89,6 @@ public class KakaoUserService {
     // RefreshToken 저장
     private void saveRefreshToken(User user, String refreshToken) {
         String hashedToken = authService.hashToken(refreshToken);
-        RefreshToken token = RefreshToken.builder()
-                .user(user)
-                .tokenHash(hashedToken)
-                .expiresAt(LocalDateTime.now().plusDays(7))
-                .build();
-        refreshTokenRepository.save(token);
+        refreshTokenRedisRepository.save(user.getId(), hashedToken);
     }
 }

@@ -4,6 +4,10 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -38,6 +42,11 @@ jobs:
           push: true
           tags: ghcr.io/appcreatorscrew/nubee-backend:latest
 
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push  # build-and-push 완료 후 실행
+
+    steps:
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
         with:
@@ -47,5 +56,5 @@ jobs:
           script: |
             echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             docker pull ghcr.io/appcreatorscrew/nubee-backend:latest
-            docker compose down
-            docker compose up -d
+            cd NUBEE-backend
+            docker compose up -d --remove-orphans

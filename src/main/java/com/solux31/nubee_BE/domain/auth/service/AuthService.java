@@ -15,15 +15,13 @@ import com.solux31.nubee_BE.domain.auth.dto.Response.BirthDateResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.SignupResDTO;
 import com.solux31.nubee_BE.domain.auth.dto.Response.TokenRefreshResDTO;
-import com.solux31.nubee_BE.domain.auth.entity.EmailVerification;
-import com.solux31.nubee_BE.domain.auth.entity.RefreshToken;
 import com.solux31.nubee_BE.domain.auth.entity.User;
 import com.solux31.nubee_BE.domain.auth.enums.EmailVerificationType;
 import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
 import com.solux31.nubee_BE.domain.auth.exception.AuthException;
 import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
-import com.solux31.nubee_BE.domain.auth.repository.EmailVerificationRepository;
-import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
+import com.solux31.nubee_BE.domain.auth.repository.EmailVerificationRedisRepository;
+import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRedisRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.profile.entity.Skin;
 import com.solux31.nubee_BE.domain.profile.entity.mapping.UserSkin;
@@ -35,7 +33,6 @@ import com.solux31.nubee_BE.global.security.util.JwtUtil;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -51,15 +48,15 @@ import java.time.Period;
 public class AuthService {
 
     private final UserRepository userRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-    private final EmailVerificationRepository emailVerificationRepository;
     private final EmailService emailService;
     private final ApplicationEventPublisher eventPublisher;
     private final SkinRepository skinRepository;
     private final UserSkinRepository userSkinRepository;
     private final EmailVerificationService emailVerificationService;
+    private final EmailVerificationRedisRepository emailVerificationRedisRepository;
+    private final RefreshTokenRedisRepository refreshTokenRedisRepository;
 
     // 회원가입
     @Transactional
@@ -124,7 +121,7 @@ public class AuthService {
         }
 
         // 기존 RefreshToken 삭제
-        refreshTokenRepository.deleteByUser(user);
+        refreshTokenRedisRepository.deleteByUserId(user.getId());
 
         // 토큰 발급
         String accessToken = jwtUtil.generateAccessToken(user.getEmail());
@@ -141,22 +138,13 @@ public class AuthService {
     public void logout(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
-
-        // RefreshToken 삭제
-        refreshTokenRepository.deleteByUser(user);
+        refreshTokenRedisRepository.deleteByUserId(user.getId());
     }
 
     // RefreshToken 저장 공통 메서드
     private void saveRefreshToken(User user, String refreshToken) {
-        // SHA-256으로 해싱 후 저장
         String hashedToken = hashToken(refreshToken);
-
-        RefreshToken token = RefreshToken.builder()
-                .user(user)
-                .tokenHash(hashedToken)
-                .expiresAt(LocalDateTime.now().plusDays(7))
-                .build();
-        refreshTokenRepository.save(token);
+        refreshTokenRedisRepository.save(user.getId(), hashedToken);
     }
 
     // SHA-256 해싱 메서드
@@ -192,28 +180,21 @@ public class AuthService {
             throw new AuthException(AuthErrorCode.NOT_REFRESH_TOKEN);
         }
 
-        // SHA-256 해싱 후 DB 조회
+        // SHA-256 해싱 후 Redis 조회
         String hashedToken = hashToken(refreshToken);
-        RefreshToken storedToken = refreshTokenRepository.findByTokenHash(hashedToken)
+        String userId = refreshTokenRedisRepository.findUserIdByTokenHash(hashedToken)
                 .orElseThrow(() -> new AuthException(AuthErrorCode.TOKEN_NOT_FOUND));
 
-        // 만료 여부 확인
-        if (storedToken.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new AuthException(AuthErrorCode.TOKEN_EXPIRED);
-        }
-
-        // 유저 조회
-        User user = storedToken.getUser();
-
-        // 기존 Refresh Token 삭제
-        refreshTokenRepository.delete(storedToken);
+        User user = userRepository.findById(Long.parseLong(userId))
+                .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
 
         // 새 토큰 발급
         String newAccessToken = jwtUtil.generateAccessToken(user.getEmail());
         String newRefreshToken = jwtUtil.generateRefreshToken(user.getEmail());
 
-        // 새 Refresh Token 저장
-        saveRefreshToken(user, newRefreshToken);
+        // 원자적 토큰 회전
+        String newHashedToken = hashToken(newRefreshToken);
+        refreshTokenRedisRepository.rotateToken(user.getId(), hashedToken, newHashedToken);
 
         return new TokenRefreshResDTO(newAccessToken, newRefreshToken);
     }
@@ -245,7 +226,7 @@ public class AuthService {
         user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
 
         // 기존 Refresh Token 전체 삭제 (재로그인 유도)
-        refreshTokenRepository.deleteByUser(user);
+        refreshTokenRedisRepository.deleteByUserId(user.getId());
     }
 
     // 비밀번호 찾기 - 이메일 인증 발송
@@ -253,39 +234,18 @@ public class AuthService {
     public void sendPasswordResetEmail(PasswordResetEmailReqDTO request) {
 
         // 이름 + 이메일로 유저 확인
-        // 존재하지 않거나 이름 불일치 모두 같은 메시지 반환 (보안)
         User user = userRepository.findByEmail(request.getEmail())
                 .filter(u -> u.getUsername().equals(request.getUsername()))
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
 
+        String code = emailService.generateCode();
 
-        Optional<EmailVerification> existing = emailVerificationRepository
-                .findTopByEmailAndTypeOrderByCreatedAtDesc(
-                        request.getEmail(), EmailVerificationType.PASSWORD_RESET);
-
-        int nextSendCount = 1;
-        if (existing.isPresent()) {
-            if (existing.get().getSendCount() >= 5) {
-                throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
-            }
-            nextSendCount = existing.get().getSendCount() + 1;
-            emailVerificationRepository.deleteByEmailAndType(
-                    request.getEmail(), EmailVerificationType.PASSWORD_RESET);
+        int sendCount = emailVerificationRedisRepository.increaseSendCountAtomic(
+                EmailVerificationType.PASSWORD_RESET, request.getEmail(), code);
+        if (sendCount == -1) {
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
         }
 
-        // 인증 코드 생성 및 저장
-        String code = emailService.generateCode();
-        EmailVerification verification = EmailVerification.builder()
-                .email(request.getEmail())
-                .code(code)
-                .type(EmailVerificationType.PASSWORD_RESET)
-                .expiresAt(LocalDateTime.now().plusMinutes(5))
-                .isVerified(false)
-                .sendCount(nextSendCount)
-                .build();
-        emailVerificationRepository.save(verification);
-
-        // 이메일 발송 직접 호출 대신 이벤트 발행
         eventPublisher.publishEvent(
                 new EmailVerificationEvent(request.getEmail(), code, EmailVerificationType.PASSWORD_RESET));
     }
@@ -294,95 +254,65 @@ public class AuthService {
     @Transactional
     public void verifyPasswordResetCode(PasswordResetVerifyReqDTO request) {
 
-        EmailVerification verification = emailVerificationRepository
-                .findTopByEmailAndTypeOrderByCreatedAtDesc(
-                        request.getEmail(), EmailVerificationType.PASSWORD_RESET)
-                .orElseThrow(() -> new AuthException(AuthErrorCode.EMAIL_CODE_NOT_FOUND));
-
-        // 만료 확인
-        if (verification.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXPIRED);
+        if (!emailVerificationRedisRepository.exists(EmailVerificationType.PASSWORD_RESET, request.getEmail())) {
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_NOT_FOUND);
         }
 
-        // 만료 확인 아래에 추가
-        if (verification.getFailCount() >= 5) {
+        if (emailVerificationRedisRepository.getFailCount(EmailVerificationType.PASSWORD_RESET, request.getEmail()) >= 5) {
             throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_FAIL);
         }
 
-        // 코드 일치 확인
-        if (!verification.getCode().equals(request.getCode())) {
-            emailVerificationService.increaseFailCount(verification);
+        String storedCode = emailVerificationRedisRepository.findCode(EmailVerificationType.PASSWORD_RESET, request.getEmail());
+
+        // null 체크 추가
+        if (storedCode == null) {
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_NOT_FOUND);
+        }
+
+        if (!storedCode.equals(request.getCode())) {
+            emailVerificationService.increaseFailCount(EmailVerificationType.PASSWORD_RESET, request.getEmail());
             throw new AuthException(AuthErrorCode.EMAIL_CODE_MISMATCH);
         }
 
-        // 인증 완료 처리
-        verification.verify();
+        emailVerificationRedisRepository.verify(EmailVerificationType.PASSWORD_RESET, request.getEmail());
     }
 
     // 비밀번호 재설정
     @Transactional
     public void resetPassword(PasswordResetConfirmReqDTO request) {
 
-        // 인증 완료 여부 확인
-        EmailVerification verification = emailVerificationRepository
-                .findTopByEmailAndTypeAndIsVerifiedTrueOrderByCreatedAtDesc(
-                        request.getEmail(), EmailVerificationType.PASSWORD_RESET)
-                .orElseThrow(() -> new AuthException(AuthErrorCode.EMAIL_NOT_VERIFIED));
-
-        // 인증 만료 여부 검사
-        if (verification.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXPIRED);
+        if (!emailVerificationRedisRepository.exists(EmailVerificationType.PASSWORD_RESET, request.getEmail())) {
+            throw new AuthException(AuthErrorCode.EMAIL_NOT_VERIFIED);
         }
 
-        // 새 비밀번호 확인
+        if (!emailVerificationRedisRepository.isVerified(EmailVerificationType.PASSWORD_RESET, request.getEmail())) {
+            throw new AuthException(AuthErrorCode.EMAIL_NOT_VERIFIED);
+        }
+
         if (!request.getNewPassword().equals(request.getNewPasswordConfirm())) {
             throw new AuthException(AuthErrorCode.PASSWORD_CONFIRM_MISMATCH);
         }
 
-        // 유저 조회 후 비밀번호 변경
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
         user.updatePassword(passwordEncoder.encode(request.getNewPassword()));
 
-        // 기존 Refresh Token 전체 삭제 (재로그인 유도)
-        refreshTokenRepository.deleteByUser(user);
-
-        // 인증 코드 삭제
-        emailVerificationRepository.deleteByEmailAndType(
-                request.getEmail(), EmailVerificationType.PASSWORD_RESET);
+        refreshTokenRedisRepository.deleteByUserId(user.getId());
+        emailVerificationRedisRepository.delete(EmailVerificationType.PASSWORD_RESET, request.getEmail());
     }
 
     // 부모님 이메일 인증 코드 발송
     @Transactional
     public void sendParentVerifyEmail(ParentEmailSendReqDTO request) {
 
-        Optional<EmailVerification> existing = emailVerificationRepository
-                .findTopByEmailAndTypeOrderByCreatedAtDesc(
-                        request.getParentEmail(), EmailVerificationType.PARENT_VERIFY);
+        String code = emailService.generateCode();
 
-        int nextSendCount = 1;
-        if (existing.isPresent()) {
-            if (existing.get().getSendCount() >= 5) {
-                throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
-            }
-            nextSendCount = existing.get().getSendCount() + 1;
-            emailVerificationRepository.deleteByEmailAndType(
-                    request.getParentEmail(), EmailVerificationType.PARENT_VERIFY);
+        int sendCount = emailVerificationRedisRepository.increaseSendCountAtomic(
+                EmailVerificationType.PARENT_VERIFY, request.getParentEmail(), code);
+        if (sendCount == -1) {
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_SEND);
         }
 
-        // 인증 코드 생성 및 저장
-        String code = emailService.generateCode();
-        EmailVerification verification = EmailVerification.builder()
-                .email(request.getParentEmail())
-                .code(code)
-                .type(EmailVerificationType.PARENT_VERIFY)
-                .expiresAt(LocalDateTime.now().plusMinutes(5))
-                .isVerified(false)
-                .sendCount(nextSendCount)
-                .build();
-        emailVerificationRepository.save(verification);
-
-        // 이메일 발송
         eventPublisher.publishEvent(
                 new EmailVerificationEvent(request.getParentEmail(), code, EmailVerificationType.PARENT_VERIFY));
     }
@@ -391,30 +321,28 @@ public class AuthService {
     @Transactional
     public void verifyParentEmail(String email, ParentEmailVerifyReqDTO request) {
 
-        EmailVerification verification = emailVerificationRepository
-                .findTopByEmailAndTypeOrderByCreatedAtDesc(
-                        request.getParentEmail(), EmailVerificationType.PARENT_VERIFY)
-                .orElseThrow(() -> new AuthException(AuthErrorCode.EMAIL_CODE_NOT_FOUND));
-
-        // 만료 확인
-        if (verification.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new AuthException(AuthErrorCode.EMAIL_CODE_EXPIRED);
+        if (!emailVerificationRedisRepository.exists(EmailVerificationType.PARENT_VERIFY, request.getParentEmail())) {
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_NOT_FOUND);
         }
 
-        if (verification.getFailCount() >= 5) {
+        if (emailVerificationRedisRepository.getFailCount(EmailVerificationType.PARENT_VERIFY, request.getParentEmail()) >= 5) {
             throw new AuthException(AuthErrorCode.EMAIL_CODE_EXCEED_FAIL);
         }
 
-        // 코드 일치 확인
-        if (!verification.getCode().equals(request.getCode())) {
-            emailVerificationService.increaseFailCount(verification);
+        String storedCode = emailVerificationRedisRepository.findCode(EmailVerificationType.PARENT_VERIFY, request.getParentEmail());
+
+        // null 체크 추가
+        if (storedCode == null) {
+            throw new AuthException(AuthErrorCode.EMAIL_CODE_NOT_FOUND);
+        }
+
+        if (!storedCode.equals(request.getCode())) {
+            emailVerificationService.increaseFailCount(EmailVerificationType.PARENT_VERIFY, request.getParentEmail());
             throw new AuthException(AuthErrorCode.EMAIL_CODE_MISMATCH);
         }
 
-        // 인증 완료 처리
-        verification.verify();
+        emailVerificationRedisRepository.verify(EmailVerificationType.PARENT_VERIFY, request.getParentEmail());
 
-        // User 테이블 업데이트 추가
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new AuthException(AuthErrorCode.USER_NOT_FOUND));
         user.updateParentInfo(request.getParentEmail());
