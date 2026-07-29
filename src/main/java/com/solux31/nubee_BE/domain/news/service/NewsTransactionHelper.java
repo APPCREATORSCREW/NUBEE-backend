@@ -198,56 +198,54 @@ public class NewsTransactionHelper {
     private NewsAnalysisResult analyzeSingleNews(NaverNewsResDTO.NaverNewsItem naverNews, String articleBody, String categoryName) {
         String prompt = String.format(
                 "You are an AI content generator and a friendly teacher for elementary school students (3rd-4th grade).\n" +
-                        "Analyze the provided [News Link] and [Alternative Text] below. You must reply strictly in the specified JSON format.\n\n" +
+                        "Analyze the provided [News Link] and [Alternative Text] below and reply strictly in the specified JSON format.\n\n" +
 
-                        "[FORMAT CONSTRAINTS]\n" +
-                        "- Keep paragraph breaks (\\n\\n).\n" +
-                        "- Do NOT use any Markdown (e.g., **, *, #). Output pure plain text only.\n\n" +
+                        "[GENERAL RULES]\n" +
+                        "- Write ALL values in Korean.\n" +
+                        "- Do NOT use Markdown formatting (e.g., **, *, #) inside field values.\n" +
+                        "- Output ONLY raw JSON object starting with { and ending with }. Absolute NO markdown block wrapper (do NOT use ```json).\n" +
+                        "- Rely strictly on objective facts from the news text and standard educational context suitable for 3rd-4th graders.\n\n" +
 
-                        "[CRITICAL CRITERIA FOR KEYWORD EXTRACTION]\n" +
-                        "- 🚨 Current Category: [%s]\n" +
-                        "- Target Vocabulary: Main (`mainKeyword`) and sub-keywords (`subKeywords`) MUST strictly belong to the academic/academic domain of this [%s] field.\n" +
-                        "- 🚨 DO NOT extract common everyday words (e.g., weekend, holiday, travel, weather, smartphone, food) even if they appear frequently.\n" +
-                        "- 🚨 DO NOT extract any specific real persons' names (e.g., politician, celebrity, criminal names).\n" +
-                        "- 🚨 DO NOT choose controversial or sensitive topics inappropriate for children (e.g., political conflicts, crimes, scandals).\n\n" +
+                        "[KEYWORD EXTRACTION CRITERIA]\n" +
+                        "- Current Category: [%s]\n" +
+                        "- Target Domain: `mainKeyword` and `subKeywords` MUST strictly belong to the academic/learning domain of the [%s] category.\n" +
+                        "- 🚨 FORBIDDEN KEYWORDS:\n" +
+                        "  1. Everyday words (e.g., 주말, 휴일, 여행, 날씨, 스마트폰, 음식).\n" +
+                        "  2. Specific real persons' names (politicians, celebrities, etc.).\n" +
+                        "  3. Sensitive/controversial topics inappropriate for children (political conflicts, crimes, scandals).\n\n" +
 
-                        "[REQUIREMENTS FOR OUTPUT FIELDS - WRITE ALL VALUES IN KOREAN]\n" +
-                        "1. summary: A child-friendly news summary tailored to 3rd-4th grade level.\n" +
+                        "[FIELD REQUIREMENTS]\n" +
+                        "1. summary: A child-friendly news summary tailored to 3rd-4th graders.\n" +
                         "   - Structure: Split into EXACTLY 2 or 3 short paragraphs.\n" +
-                        "   - Constraint: Each paragraph MUST start with a subtitle accompanied by a relevant emoji (e.g., 🎬 소제목).\n" +
-                        "   - Tone & Style: Use a very warm, friendly colloquial storytelling style ('~하는 거예요.', '~와 같아요.', '~처럼요!'). Include at least one relatable metaphor for difficult concepts.\n" +
-                        "2. mainKeyword: Exactly 1 core word representing the article (plain text in Korean).\n" +
-                        "3. subKeywords: A list of 3 educational vocabulary words found in the text.\n" +
-                        "   - Each item must have `word` and `explanation` (a clear definition in Korean within 1-2 sentences).\n" +
-                        "4. newsQuiz: A 4-option multiple-choice reading comprehension quiz.\n" +
-                        "   - Rule: Question should ask about the causal relationships or core phenomena in the news, NOT just a simple word definition.\n" +
-                        "   - newsQuiz.answer: 🚨 CRITICAL. Must be an integer between 1 and 4 (1-based index). Do NOT use 0-based index.\n" +
-                        "   - Make sure the actual correct sentence matches the `options[answer - 1]` position perfectly.\n" +
-                        "   - newsQuiz.explanation: Provide a friendly explanation in Korean (at least 2 sentences) in the same colloquial tone.\n\n" +
+                        "   - Subtitle: MUST start each paragraph with an emoji and subtitle (e.g., 🎬 소제목) followed by a line break (\\n).\n" +
+                        "   - Paragraph Break: Separate each paragraph with double line breaks (\\n\\n).\n" +
+                        "   - Tone & Style: Warm, colloquial storytelling style ('~하는 거예요.', '~와 같아요.'). Include at least one relatable metaphor.\n" +
+                        "2. mainKeyword: Exactly 1 core domain-specific vocabulary word representing the article.\n" +
+                        "3. subKeywords: Exactly 3 educational vocabulary words from the text.\n" +
+                        "   - Each item must have `word` and `explanation` (1-2 sentences in Korean).\n" +
+                        "4. newsQuiz: A 4-option multiple-choice comprehension quiz.\n" +
+                        "   - Ask about CAUSAL RELATIONSHIPS or core phenomena in the news, NOT simple word definitions.\n" +
+                        "   - answer: 🚨 Must be an integer between 1 and 4 (1-based index).\n" +
+                        "   - Ensure `options[answer - 1]` strictly matches the correct answer.\n" +
+                        "   - explanation: Gentle explanation in Korean (at least 2 sentences) in a warm colloquial tone.\n\n" +
 
-                        "[⚠️ NO HALLUCINATION & STRICT JSON RULE]\n" +
-                        "- Do not fabricate facts. Rely ONLY on the provided news text.\n" +
-                        "- Output ONLY the pure raw JSON object starting with { and ending with }. Do not include markdown code block syntax (```json).\n\n" +
-                        "- Ensure all content is generated based on universally accepted and accurate economic, social, or scientific facts related to the provided core keyword(s) (e.g., 'Inflation', 'Interest Rate').\n" +
-                        "- Use the provided news summary strictly as a reference for the 'real-world context' in which the keyword is used." +
-                        "- The core definitions and cause-and-effect relationships must be written based entirely on objective facts suitable for South Korean elementary school 3rd and 4th-grade curriculum levels."+
-
-                        "[OUTPUT FORMAT GUIDE]\n" +
+                        "[OUTPUT FORMAT EXAMPLE]\n" +
                         "{\n" +
-                        "  \"summary\": \"[이모지] [소제목 1]\\n[초등학생 눈높이에 맞춘 구어체와 비유를 섞은 친절한 설명 1]\\n\\n[이모지] [소제목 2]\\n[원인과 결과를 쉽게 풀어쓴 설명 2]\",\n" +
-                        "  \"mainKeyword\": \"추출된 핵심 메인 키워드 단어 1개\",\n" +
+                        "  \"summary\": \"[이모지] [소제목 1]\\n[친절한 설명 1과 비유]\\n\\n[이모지] [소제목 2]\\n[원인과 결과를 쉽게 풀어쓴 설명 2]\",\n" +
+                        "  \"mainKeyword\": \"추출된 핵심 메인 키워드 1개\",\n" +
                         "  \"subKeywords\": [\n" +
-                        "    { \"word\": \"추천 시사어휘1\", \"explanation\": \"뜻 설명\" },\n" +
-                        "    { \"word\": \"추천 시사어휘2\", \"explanation\": \"뜻 설명\" },\n" +
-                        "    { \"word\": \"추천 시사어휘3\", \"explanation\": \"뜻 설명\" }\n" +
+                        "    { \"word\": \"추천 어휘1\", \"explanation\": \"뜻 설명\" },\n" +
+                        "    { \"word\": \"추천 어휘2\", \"explanation\": \"뜻 설명\" },\n" +
+                        "    { \"word\": \"추천 어휘3\", \"explanation\": \"뜻 설명\" }\n" +
                         "  ],\n" +
                         "  \"newsQuiz\": {\n" +
-                        "    \"question\": \"뉴스 본문 속 인과관계나 핵심 현상을 묻는 맥락 질문\",\n" +
+                        "    \"question\": \"뉴스 속 인과관계나 핵심 현상을 묻는 질문\",\n" +
                         "    \"options\": [\"오답 선지1\", \"정답 선지\", \"오답 선지3\", \"오답 선지4\"],\n" +
                         "    \"answer\": 2,\n" +
-                        "    \"explanation\": \"정답 원리를 짚어주는 2문장 이상의 친절한 구어체 해설\"\n" +
+                        "    \"explanation\": \"정답 이유를 풀어주는 2문장 이상의 친절한 구어체 해설.\"\n" +
                         "  }\n" +
                         "}\n\n" +
+
                         "[News Link]: %s\n" +
                         "[Alternative Text]: %s",
                 categoryName, categoryName, naverNews.getLink(), articleBody
