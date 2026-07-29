@@ -8,6 +8,8 @@ services:
       - DB_URL=${DB_URL}
       - DB_USER=${DB_USER}
       - DB_PW=${DB_PW}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - JWT_SECRET=${JWT_SECRET}
       - KAKAO_CLIENT_ID=${KAKAO_CLIENT_ID}
       - KAKAO_CLIENT_SECRET=${KAKAO_CLIENT_SECRET}
@@ -23,4 +25,13 @@ services:
       - AWS_S3_BUCKET=${AWS_S3_BUCKET}
       - AWS_REGION=${AWS_REGION}
       - SERVER_URL=${SERVER_URL}
+    depends_on:
+      - redis
+    restart: always
+
+  redis:
+    container_name: nubee-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
     restart: always
