@@ -9,8 +9,8 @@ spring:
     password: ${DB_PW}
     hikari:
       data-source-properties:
-        sslMode: REQUIRED
-        trustServerCertificate: false
+        sslMode: PREFERRED
+        trustServerCertificate: true
 
   data:
     redis:
