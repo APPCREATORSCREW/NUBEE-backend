@@ -5,7 +5,7 @@ on:
     branches: [ main ]
 
 jobs:
-  deploy:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,6 +24,20 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew clean build -x test
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and Push Docker image to GHCR
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/appcreatorscrew/nubee-backend:latest
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
         with:
@@ -31,8 +45,7 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd NUBEE-backend
-            git pull origin main
-            ./gradlew clean build -x test
+            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull ghcr.io/appcreatorscrew/nubee-backend:latest
             docker compose down
-            docker compose up --build -d
+            docker compose up -d
