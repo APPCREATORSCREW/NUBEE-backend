@@ -29,7 +29,7 @@ public class SwaggerConfig {
 
         return new OpenAPI()
                 .info(info)
-                .addServersItem(new Server().url("/"))
+                .addServersItem(new Server().url("https://nubee.site"))
                 .addSecurityItem(securityRequirement)
                 .components(components);
     }
