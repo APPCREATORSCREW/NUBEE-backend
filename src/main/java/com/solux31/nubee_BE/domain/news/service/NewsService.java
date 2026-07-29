@@ -60,7 +60,7 @@ public class NewsService {
         List<String> collectedLinks = new ArrayList<>();
 
         // 전체 카테고리 수집 루프 시작 전, 최근 2일간 DailyNews와 연관된 MAIN 키워드 목록 조회
-        LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(2);
+        LocalDateTime threeDaysAgo = LocalDate.now().minusDays(2).atStartOfDay();
         List<String> recentMainKeywords = keywordRepository.findRecentMainKeywordsByNewsDate(threeDaysAgo);
 
         // Gemini 프롬프트 전달용 문자열 생성 (예: "인공지능, 금리, 반도체")
