@@ -54,6 +54,7 @@ front:
 
 server:
   port: 8082
+  url: ${SERVER_URL:http://localhost:8082}
 
 llm:
   gateway:
