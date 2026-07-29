@@ -24,7 +24,7 @@ public class UserKeywordController {
     // 단어 리스트 조회
     @GetMapping
     @Operation(summary = "단어 리스트 조회", description = "단어장의 단어 리스트를 조회합니다.")
-    public ApiResponse<List<WordsResDTO>> getWords(@AuthenticationPrincipal AuthUser authUser) {
+    public ApiResponse<WordsResDTO> getWords(@AuthenticationPrincipal AuthUser authUser) {
         return ApiResponse.onSuccess(GeneralSuccessCode.OK, userKeywordServiceService.getWords(authUser.getUserId()));
     }
 
