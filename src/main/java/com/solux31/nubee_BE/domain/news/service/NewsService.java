@@ -257,7 +257,7 @@ public class NewsService {
                 "   - Do NOT repeat sentences from the explanation.\n" +
                 "4. keywordQuiz: A 4-option multiple-choice quiz testing the CAUSAL EFFECT (Steps 2 & 3) of the word.\n" +
                 "   - Do NOT ask simple dictionary definitions (e.g., 'What is the definition of X?').\n" +
-                "   - answer: An integer between 1 and 4.\n" +
+                "   - answer: An integer between 1 and 4. (Ensure fair distribution across all 4 options, including Option 4).\n" +
                 "   - explanation: Gentle explanation in Korean (at least 2 sentences) on why the answer is correct.\n\n" +
 
                 "[OUTPUT FORMAT EXAMPLE]\n" +

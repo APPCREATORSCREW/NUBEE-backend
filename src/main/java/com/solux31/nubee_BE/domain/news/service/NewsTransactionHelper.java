@@ -225,7 +225,7 @@ public class NewsTransactionHelper {
                         "   - Each item must have `word` and `explanation` (1-2 sentences in Korean).\n" +
                         "4. newsQuiz: A 4-option multiple-choice comprehension quiz.\n" +
                         "   - Ask about CAUSAL RELATIONSHIPS or core phenomena in the news, NOT simple word definitions.\n" +
-                        "   - answer: 🚨 Must be an integer between 1 and 4 (1-based index).\n" +
+                        "   - answer: 🚨 Must be an integer between 1 and 4 (1-based index). (Ensure fair distribution across all 4 options, including Option 4).\n" +
                         "   - Ensure `options[answer - 1]` strictly matches the correct answer.\n" +
                         "   - explanation: Gentle explanation in Korean (at least 2 sentences) in a warm colloquial tone.\n\n" +
 
