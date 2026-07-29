@@ -38,6 +38,11 @@ jobs:
           push: true
           tags: ghcr.io/appcreatorscrew/nubee-backend:latest
 
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push  # build-and-push 완료 후 실행
+
+    steps:
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
         with:
