@@ -13,13 +13,10 @@ import java.util.TimeZone;
 @EnableAsync
 public class NubeeBeApplication {
 
-	@PostConstruct
-	public void started() {
-		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Seoul"));
-	}
-
 	public static void main(String[] args) {
+		// SpringApplication이 실행되기 전에 JVM 타임존을 최우선으로 설정
+		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Seoul"));
+
 		SpringApplication.run(NubeeBeApplication.class, args);
 	}
-
 }

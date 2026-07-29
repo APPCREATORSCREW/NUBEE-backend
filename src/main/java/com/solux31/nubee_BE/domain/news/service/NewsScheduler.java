@@ -5,8 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.TimeZone;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -20,9 +18,6 @@ public class NewsScheduler {
      */
     @Scheduled(cron = "0 0 4 * * *", zone = "Asia/Seoul") // 한국 시간 기준 새벽 4시 정각
     public void runDailyNewsWorkflow() {
-        // 배치 실행 중 생성되는 LocalDateTime 표기를 KST 기준으로 유지
-        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Seoul"));
-
         log.info("=== 새벽 뉴스 배치 스케줄러 시작 ===");
         try {
             newsService.executeDailyNewsWorkflow();
