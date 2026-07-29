@@ -1,14 +1,9 @@
 package com.solux31.nubee_BE.domain.auth.service;
 
 import com.solux31.nubee_BE.domain.auth.dto.Response.KakaoLoginResDTO;
-import com.solux31.nubee_BE.domain.auth.entity.RefreshToken;
-import com.solux31.nubee_BE.domain.auth.entity.User;
-import com.solux31.nubee_BE.domain.auth.enums.UserStatus;
 import com.solux31.nubee_BE.domain.auth.exception.AuthException;
 import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
-import com.solux31.nubee_BE.domain.auth.repository.RefreshTokenRepository;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
-import com.solux31.nubee_BE.domain.auth.dto.Response.LoginResDTO;
 import com.solux31.nubee_BE.global.security.util.JwtUtil;
 import jakarta.servlet.http.HttpSession;
 import java.time.Duration;
@@ -16,10 +11,8 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 import reactor.core.publisher.Mono;
 
@@ -27,10 +20,6 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class KakaoAuthService {
 
-    private final UserRepository userRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final JwtUtil jwtUtil;
-    private final AuthService authService;
     private final KakaoUserService kakaoUserService;
 
     @Value("${kakao.client-id}")
