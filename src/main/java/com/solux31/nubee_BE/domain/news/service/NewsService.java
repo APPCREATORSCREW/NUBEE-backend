@@ -59,6 +59,17 @@ public class NewsService {
 
         List<String> collectedLinks = new ArrayList<>();
 
+        // 전체 카테고리 수집 루프 시작 전, 최근 2일간 DailyNews와 연관된 MAIN 키워드 목록 조회
+        LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(2);
+        List<String> recentMainKeywords = keywordRepository.findRecentMainKeywordsByNewsDate(threeDaysAgo);
+
+        // Gemini 프롬프트 전달용 문자열 생성 (예: "인공지능, 금리, 반도체")
+        String recentMainKeywordsStr = (recentMainKeywords != null && !recentMainKeywords.isEmpty())
+                ? String.join(", ", recentMainKeywords)
+                : "";
+
+        System.out.println("📋 [최근 수집된 MAIN 제외 키워드 목록]: " + recentMainKeywordsStr);
+
         for (String categoryId : categories) {
             String categoryName = convertCategoryName(categoryId);
             List<NaverNewsResDTO.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 20);
@@ -82,7 +93,7 @@ public class NewsService {
                 }
 
                 try {
-                    String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName);
+                    String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName, recentMainKeywordsStr);
                     System.out.println("🔍 추출된 메인 키워드: " + mainKeyword);
 
                     if (mainKeyword != null && !mainKeyword.trim().isEmpty()) {
@@ -106,6 +117,13 @@ public class NewsService {
 
                         collectedLinks.add(naverNews.getLink());
                         savedCount++;
+
+                        if (recentMainKeywordsStr.isEmpty()) {
+                            recentMainKeywordsStr = mainKeyword;
+                        } else {
+                            recentMainKeywordsStr += ", " + mainKeyword;
+                        }
+
                         System.out.println("✅ [" + categoryName + "] " + savedCount + "번째 뉴스 수집/저장 성공!"); // 저장 성공 시점 출력
                     }
                 } catch (Exception e) {

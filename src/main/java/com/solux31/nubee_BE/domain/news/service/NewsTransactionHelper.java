@@ -52,7 +52,7 @@ public class NewsTransactionHelper {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public String processSingleNews(NaverNewsResDTO.NaverNewsItem naverNews, String categoryName) throws Exception {
+    public String processSingleNews(NaverNewsResDTO.NaverNewsItem naverNews, String categoryName, String recentMainKeywords) throws Exception {
         String articleBody = "";
         String imageUrl = null;
 
@@ -96,7 +96,7 @@ public class NewsTransactionHelper {
             throw new NewsException(NewsErrorCode.ARTICLE_BODY_EMPTY);
         }
 
-        NewsAnalysisResult result = analyzeSingleNews(naverNews, articleBody, categoryName);
+        NewsAnalysisResult result = analyzeSingleNews(naverNews, articleBody, categoryName, recentMainKeywords);
 
         if (result.getNewsQuiz() == null || result.getNewsQuiz().getOptions() == null) {
             throw new NewsException(NewsErrorCode.GEMINI_PARSE_ERROR);
@@ -195,7 +195,11 @@ public class NewsTransactionHelper {
         return urlString;
     }
 
-    private NewsAnalysisResult analyzeSingleNews(NaverNewsResDTO.NaverNewsItem naverNews, String articleBody, String categoryName) {
+    private NewsAnalysisResult analyzeSingleNews(NaverNewsResDTO.NaverNewsItem naverNews, String articleBody, String categoryName, String recentMainKeywords) {
+        String excludeSection = (recentMainKeywords != null && !recentMainKeywords.trim().isEmpty())
+                ? String.format("\n- 🚨 RECENT MAIN KEYWORDS TO EXCLUDE: [%s] (Avoid selecting these exact words as `mainKeyword` unless no other domain keyword exists).", recentMainKeywords)
+                : "";
+
         String prompt = String.format(
                 "You are an AI content generator and a friendly teacher for elementary school students (3rd-4th grade).\n" +
                         "Analyze the provided [News Link] and [Alternative Text] below and reply strictly in the specified JSON format.\n\n" +
@@ -208,7 +212,7 @@ public class NewsTransactionHelper {
 
                         "[KEYWORD EXTRACTION CRITERIA]\n" +
                         "- Current Category: [%s]\n" +
-                        "- Target Domain: `mainKeyword` and `subKeywords` MUST strictly belong to the academic/learning domain of the [%s] category.\n" +
+                        "- Target Domain: `mainKeyword` and `subKeywords` MUST strictly belong to the academic/learning domain of the [%s] category.%s\n" +
                         "- 🚨 FORBIDDEN KEYWORDS:\n" +
                         "  1. Everyday words (e.g., 주말, 휴일, 여행, 날씨, 스마트폰, 음식).\n" +
                         "  2. Specific real persons' names (politicians, celebrities, etc.).\n" +
@@ -248,7 +252,7 @@ public class NewsTransactionHelper {
 
                         "[News Link]: %s\n" +
                         "[Alternative Text]: %s",
-                categoryName, categoryName, naverNews.getLink(), articleBody
+                categoryName, categoryName, excludeSection, naverNews.getLink(), articleBody
         );
 
         String jsonResponse;

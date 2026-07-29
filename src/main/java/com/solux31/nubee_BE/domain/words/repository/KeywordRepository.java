@@ -2,8 +2,11 @@ package com.solux31.nubee_BE.domain.words.repository;
 
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,7 +31,7 @@ public interface KeywordRepository extends JpaRepository<Keyword, Long> {
     List<Keyword> findByDailyNewsIdAndKeywordType(Long newsId, String keywordType);
 
     /**
-     * 특정 뉴스 ID 내에서 단어 이름(word)을 기준으로 기존에 등록된 키워드가 있는지 정확하게 조회함
+     * 특정 뉴스 ID 내에서 단어 이름(word)을 기준으로 기존에 등록된 키워드가 있는지 조회함
      *
      * @param word 찾고자 하는 단어 이름 (ex: "금리", "우주선")
      * @param newsId 연관된 뉴스 외래키 ID
@@ -38,4 +41,10 @@ public interface KeywordRepository extends JpaRepository<Keyword, Long> {
 
     boolean existsByWord(String word);
     Optional<Keyword> findFirstByWord(String word);
+
+    @Query("SELECT DISTINCT k.word FROM Keyword k " +
+            "JOIN k.dailyNews dn " +
+            "WHERE k.keywordType = 'MAIN' " +
+            "  AND dn.createdAt >= :startDate")
+    List<String> findRecentMainKeywordsByNewsDate(@Param("startDate") LocalDateTime startDate);
 }
