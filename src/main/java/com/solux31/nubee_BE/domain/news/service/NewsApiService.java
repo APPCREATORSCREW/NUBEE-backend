@@ -3,6 +3,7 @@ package com.solux31.nubee_BE.domain.news.service;
 import com.solux31.nubee_BE.domain.news.dto.Response.NaverNewsResDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -23,7 +24,15 @@ public class NewsApiService {
     @Value("${naver.api.url}")
     private String apiUrl;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    // 생성자에서 Timeout(연결 5초, 읽기 5초)이 설정된 RestTemplate을 생성
+    public NewsApiService() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000); // 5초
+        factory.setReadTimeout(5000);    // 5초
+        this.restTemplate = new RestTemplate(factory);
+    }
 
     //특정 카테고리 키워드로 최신 뉴스 2개를 긁어오는 메서드
     public List<NaverNewsResDTO.NaverNewsItem> fetchNewsByCategory(String categoryCode, int displayCount) {

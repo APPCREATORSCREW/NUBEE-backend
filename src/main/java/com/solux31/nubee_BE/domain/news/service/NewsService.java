@@ -59,6 +59,17 @@ public class NewsService {
 
         List<String> collectedLinks = new ArrayList<>();
 
+        // 전체 카테고리 수집 루프 시작 전, 최근 2일간 DailyNews와 연관된 MAIN 키워드 목록 조회
+        LocalDateTime threeDaysAgo = LocalDate.now().minusDays(2).atStartOfDay();
+        List<String> recentMainKeywords = keywordRepository.findRecentMainKeywordsByNewsDate(threeDaysAgo);
+
+        // Gemini 프롬프트 전달용 문자열 생성 (예: "인공지능, 금리, 반도체")
+        String recentMainKeywordsStr = (recentMainKeywords != null && !recentMainKeywords.isEmpty())
+                ? String.join(", ", recentMainKeywords)
+                : "";
+
+        System.out.println("📋 [최근 수집된 MAIN 제외 키워드 목록]: " + recentMainKeywordsStr);
+
         for (String categoryId : categories) {
             String categoryName = convertCategoryName(categoryId);
             List<NaverNewsResDTO.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 20);
@@ -82,7 +93,7 @@ public class NewsService {
                 }
 
                 try {
-                    String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName);
+                    String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName, recentMainKeywordsStr);
                     System.out.println("🔍 추출된 메인 키워드: " + mainKeyword);
 
                     if (mainKeyword != null && !mainKeyword.trim().isEmpty()) {
@@ -106,6 +117,13 @@ public class NewsService {
 
                         collectedLinks.add(naverNews.getLink());
                         savedCount++;
+
+                        if (recentMainKeywordsStr.isEmpty()) {
+                            recentMainKeywordsStr = mainKeyword;
+                        } else {
+                            recentMainKeywordsStr += ", " + mainKeyword;
+                        }
+
                         System.out.println("✅ [" + categoryName + "] " + savedCount + "번째 뉴스 수집/저장 성공!"); // 저장 성공 시점 출력
                     }
                 } catch (Exception e) {
@@ -239,38 +257,38 @@ public class NewsService {
         }
 
         String promptTemplate = "You are an educational vocabulary expert and a friendly character named 'Nubee(honeybee)' for kids.\n" +
-                "For each word provided in the [Keyword List], generate standardized educational content for 3rd-4th grade. You must output strictly in JSON Array format.\n\n" +
+                "For each word provided in the [Keyword List], generate standardized educational content for 3rd-4th grade in strict JSON Array format.\n\n" +
 
-                "[REQUIREMENTS FOR OUTPUT FIELDS - WRITE ALL VALUES IN KOREAN]\n" +
+                "[GENERAL RULES]\n" +
+                "- Write ALL values in Korean.\n" +
+                "- Do NOT use Markdown formatting (e.g., **, *, #) inside field values.\n" +
+                "- Output ONLY raw JSON array starting with [ and ending with ]. Absolute NO markdown block wrapper (do NOT use ```json).\n\n" +
+
+                "[FIELD REQUIREMENTS]\n" +
                 "1. keyword: The exact input word.\n" +
-                "2. explanation: Follow this EXACT 4-step structure and tone with line breaks (\\n):\n" +
-                "   - Step 1 (Definition): Define the core concept clearly in one line: '[단어명]는/은 ~예요/이에요!'\n" +
-                "   - Step 2 (Causal Effect 1): Explain in child-friendly terms what happens to the economy/society/science when this concept increases/strengthens.\n" +
-                "   - Step 3 (Causal Effect 2): Explain the opposite case (when it decreases/weakens) or additional critical linked phenomena.\n" +
-                "   - Step 4 (Summary Wrap-up): Write '이것만 기억해요!' and provide 3 key takeaway rules using bullet points (•), arrows (➔), and signs (↑, ↓).\n" +
-                "3. example_sentence: Provide EXACTLY 1 unique, highly realistic and complete example sentence showing how the word is used in daily life or real news contexts.\n" +
-                "   - Do not reuse the text from the explanation field; make it a creative standalone example.\n" +
-                "4. keywordQuiz: A 4-option multiple-choice quiz testing the usage or causal effect of the word.\n" +
-                "   - 🚨 ABSOLUTELY NO simple dictionary definition questions (e.g., 'What is the definition of this word?').\n" +
-                "   - Question must ask about the causal relationships or phenomena described in Steps 2 or 3 of the explanation.\n" +
-                "   - answer: 🚨 Must be an integer between 1 and 4 (1-based index).\n" +
-                "   - explanation: Provide a gentle, thorough explanation in Korean (at least 2 sentences) on why the options are correct/incorrect.\n\n" +
+                "2. explanation: Follow this EXACT 4-step structure. You MUST separate each step with double line breaks (\\n\\n):\n" +
+                "   - Step 1 (Definition): '[단어명]는/은 ~예요/이에요!' (One-line core definition)\n" +
+                "   - Step 2 (Causal Effect 1): Friendly explanation of what happens when this concept increases/strengthens.\n" +
+                "   - Step 3 (Causal Effect 2): Explanation of the opposite case (when it decreases/weakens) or linked phenomena.\n" +
+                "   - Step 4 (Summary): '이것만 기억해요!' followed by 3 takeaway rules using bullets (•), arrows (➔), and signs (↑, ↓).\n" +
+                "3. example_sentence: Exactly 1 standalone, highly realistic example sentence for kids showing how the word is used in daily life.\n" +
+                "   - Do NOT repeat sentences from the explanation.\n" +
+                "4. keywordQuiz: A 4-option multiple-choice quiz testing the CAUSAL EFFECT (Steps 2 & 3) of the word.\n" +
+                "   - Do NOT ask simple dictionary definitions (e.g., 'What is the definition of X?').\n" +
+                "   - answer: An integer between 1 and 4. (Ensure fair distribution across all 4 options, including Option 4).\n" +
+                "   - explanation: Gentle explanation in Korean (at least 2 sentences) on why the answer is correct.\n\n" +
 
-                "[⚠️ NO DUPLICATION & STRICT JSON ARRAY RULE]\n" +
-                "- Create original examples tailored to the specific word's nature.\n" +
-                "- Output ONLY the pure raw JSON array starting with [ and ending with ]. Do not include markdown tags (```json).\n\n" +
-
-                "[OUTPUT FORMAT GUIDE]\n" +
+                "[OUTPUT FORMAT EXAMPLE]\n" +
                 "[\n" +
                 "  {\n" +
-                "    \"keyword\": \"입력된 단어 이름\",\n" +
-                "    \"explanation\": \"[1단계 한 줄 정의]\\n\\n[2단계 개념이 높아지거나 강해질 때의 현상]\\n\\n[3단계 개념이 낮아지거나 약해질 때의 현상]\\n\\n이것만 기억해요!\\n• [핵심요약 1] ➔ [현상 1] ↑\\n• [핵심요약 2] ➔ [현상 2] 쉬워짐\\n• [핵심요약 3]\",\n" +
-                "    \"example_sentence\": \"아이들이 일상에서 단어의 뜻과 쓰임새를 단번에 체감할 수 있는 완결된 예시 문장 한 줄\",\n" +
+                "    \"keyword\": \"단어\",\n" +
+                "    \"explanation\": \"[1단계 정의]\\n\\n[2단계 강화/상승 현상]\\n\\n[3단계 약화/하락 현상]\\n\\n이것만 기억해요!\\n• [핵심요약 1] ➔ [현상 1] ↑\\n• [핵심요약 2] ➔ [현상 2]\\n• [핵심요약 3]\",\n" +
+                "    \"example_sentence\": \"어린이가 이해하기 쉬운 실생활 예문 한 줄\",\n" +
                 "    \"keywordQuiz\": {\n" +
-                "      \"question\": \"단어의 인과관계를 묻는 맥락 질문\",\n" +
+                "      \"question\": \"인과관계를 묻는 질문\",\n" +
                 "      \"options\": [\"선지1\", \"선지2\", \"선지3\", \"선지4\"],\n" +
                 "      \"answer\": 1,\n" +
-                "      \"explanation\": \"정답과 오답의 원리를 친절하게 설명하는 2문장 이상의 해설\"\n" +
+                "      \"explanation\": \"정답 이유와 오답 이유를 설명하는 2문장 이상의 친절한 해설.\"\n" +
                 "    }\n" +
                 "  }\n" +
                 "]\n\n" +
