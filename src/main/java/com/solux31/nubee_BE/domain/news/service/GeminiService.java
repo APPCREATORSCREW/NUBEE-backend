@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -21,7 +22,15 @@ public class GeminiService {
     @Value("${llm.gateway.model}")
     private String modelName;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    // 생성자에서 Timeout(연결 5초, 읽기 20초)이 설정된 RestTemplate을 생성
+    public GeminiService() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);  // 5초
+        factory.setReadTimeout(20000);    // Gemini 분석 시간을 고려해 20초
+        this.restTemplate = new RestTemplate(factory);
+    }
 
     /**
      * 프롬프트를 받아 스노우챗 API Gateway(OpenAI 호환 포맷)를 호출하고 텍스트 응답을 반환
