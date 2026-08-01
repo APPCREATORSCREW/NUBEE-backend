@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+
 public interface ReviewRepository extends JpaRepository<UserNewsHistory, Long> {
     @Query("SELECT h FROM UserNewsHistory h " +
             "JOIN FETCH h.news n " +      // ← 끝에 공백 추가
@@ -18,4 +20,9 @@ public interface ReviewRepository extends JpaRepository<UserNewsHistory, Long> {
             @Param("category") String category,
             Pageable pageable
     );
+
+    @Query("SELECT DISTINCT n.category FROM UserNewsHistory h " +
+            "JOIN h.news n " +
+            "WHERE h.user.id = :userId")
+    List<String> findDistinctCategoriesByUserId(@Param("userId") Long userId);
 }
