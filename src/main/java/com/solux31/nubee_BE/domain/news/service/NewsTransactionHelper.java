@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.Locale;
 
 @Component
@@ -40,7 +41,8 @@ public class NewsTransactionHelper {
 
     // RFC 1123 규격 포맷터 (예: "Tue, 15 Oct 2024 10:30:00 +0900")
     private static final DateTimeFormatter PUB_DATE_FORMATTER =
-            DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
+            DateTimeFormatter.ofPattern("EEE, dd MMM uuuu HH:mm:ss Z", Locale.ENGLISH)
+                    .withResolverStyle(ResolverStyle.STRICT);
 
     private LocalDateTime parsePubDate(String pubDateStr) {
         // null 또는 빈 문자열 검증 및 1회 trim 처리
