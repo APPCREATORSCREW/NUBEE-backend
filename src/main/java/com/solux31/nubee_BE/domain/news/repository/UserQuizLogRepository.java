@@ -43,8 +43,4 @@ public interface UserQuizLogRepository extends JpaRepository<UserQuizLog, Long> 
     List<UserQuizLog> findTodayLogsByUserIdAndQuizType(
             @Param("userId") Long userId,
             @Param("quizType") String quizType);
-
-
-
-
 }
