@@ -83,7 +83,7 @@ src/main/java/com/solux31/nubee_BE/
 ├── domain/
 │   ├── auth/          # 인증/인가, 온보딩
 │   ├── words/         # 단어장
-│   ├── news/          # 학습 결과 전송
+│   ├── news/          # 뉴스 콘텐츠 제공
 │   ├── review/        # 복습 탭
 │   ├── points/        # 포인트
 │   └── profile/       # 프로필, 스킨
