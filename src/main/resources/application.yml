@@ -44,7 +44,7 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-expiration: 3600000
+  access-expiration: 5000
   refresh-expiration: 2592000000
 
 kakao:
