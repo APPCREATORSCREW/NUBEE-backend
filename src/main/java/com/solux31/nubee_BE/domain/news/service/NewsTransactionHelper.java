@@ -22,6 +22,12 @@ import java.net.URL;
 
 import javax.net.ssl.*;
 import java.security.cert.X509Certificate;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
+import java.util.Locale;
 
 @Component
 @RequiredArgsConstructor
@@ -32,6 +38,33 @@ public class NewsTransactionHelper {
     private final DailyNewsRepository dailyNewsRepository;
     private final QuizRepository quizRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    // RFC 1123 규격 포맷터 (예: "Tue, 15 Oct 2024 10:30:00 +0900")
+    private static final DateTimeFormatter PUB_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("EEE, dd MMM uuuu HH:mm:ss Z", Locale.ENGLISH)
+                    .withResolverStyle(ResolverStyle.STRICT);
+
+    private LocalDateTime parsePubDate(String pubDateStr) {
+        // null 또는 빈 문자열 검증 및 1회 trim 처리
+        if (pubDateStr == null || pubDateStr.isBlank()) {
+            throw new NewsException(NewsErrorCode.INVALID_PUB_DATE);
+        }
+
+        String trimmed = pubDateStr.trim();
+
+        try {
+            // 오프셋(타임존) 정보를 보존하여 ZonedDateTime으로 파싱
+            ZonedDateTime zdt = ZonedDateTime.parse(trimmed, PUB_DATE_FORMATTER);
+
+            // DailyNews.publishedAt 필드가 LocalDateTime인 경우 오프셋 처리 후 변환
+            return zdt.toLocalDateTime();
+            // 만약 DailyNews.publishedAt 타입이 OffsetDateTime/ZonedDateTime이라면 zdt.toOffsetDateTime() 리턴
+        } catch (DateTimeParseException e) {
+            // DateTimeParseException만 정확히 포착하여 예외 던짐
+            System.err.println("❌ pubDate 파싱 실패: " + trimmed);
+            throw new NewsException(NewsErrorCode.INVALID_PUB_DATE);
+        }
+    }
 
     private SSLSocketFactory createTrustAllSslSocketFactory() {
         try {
@@ -110,12 +143,16 @@ public class NewsTransactionHelper {
         }
 
         System.out.println("데이터베이스(MySQL) 적재 시작");
+
+        LocalDateTime publishedAt = parsePubDate(naverNews.getPubDate());
+
         DailyNews news = DailyNews.builder()
                 .title(naverNews.getTitle())
                 .originalUrl(naverNews.getLink())
                 .summary(result.getSummary())
                 .category(categoryName)
                 .imageUrl(imageUrl)
+                .publishedAt(publishedAt)
                 .build();
 
         DailyNews savedNews = dailyNewsRepository.save(news);

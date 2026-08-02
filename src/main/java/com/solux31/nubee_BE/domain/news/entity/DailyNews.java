@@ -34,6 +34,9 @@ public class DailyNews {
     @Column(nullable = false, length = 1000)
     private String originalUrl;
 
+    @Column(nullable = false)
+    private LocalDateTime publishedAt; // 기사 발행일
+
     // 뉴스 하나에 여러 키워드가 묶이는 1:N 양방향 매핑
     @Builder.Default
     @OneToMany(mappedBy = "dailyNews", cascade = CascadeType.ALL, orphanRemoval = true)

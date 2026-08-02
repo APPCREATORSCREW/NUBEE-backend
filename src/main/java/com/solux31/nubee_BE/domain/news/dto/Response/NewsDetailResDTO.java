@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -17,6 +19,7 @@ public class NewsDetailResDTO {
     private String summary;
     private String image_url;
     private String original_url;
+    private LocalDateTime published_at;
     private List<RelatedKeywordDto> related_keywords; // 하이라이팅용 단어 리스트
 
     @Getter
