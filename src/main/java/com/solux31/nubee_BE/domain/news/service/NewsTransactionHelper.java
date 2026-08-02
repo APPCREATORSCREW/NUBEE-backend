@@ -22,6 +22,9 @@ import java.net.URL;
 
 import javax.net.ssl.*;
 import java.security.cert.X509Certificate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 @Component
 @RequiredArgsConstructor
@@ -32,6 +35,19 @@ public class NewsTransactionHelper {
     private final DailyNewsRepository dailyNewsRepository;
     private final QuizRepository quizRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private LocalDateTime parsePubDate(String pubDateStr) {
+        if (pubDateStr == null || pubDateStr.trim().isEmpty()) {
+            return LocalDateTime.now(); // 만약 날짜가 비어있다면 현재 시각으로 대처
+        }
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
+            return LocalDateTime.parse(pubDateStr, formatter);
+        } catch (Exception e) {
+            System.err.println("pubDate 파싱 실패 (" + pubDateStr + "), 현재 시간으로 대체합니다.");
+            return LocalDateTime.now();
+        }
+    }
 
     private SSLSocketFactory createTrustAllSslSocketFactory() {
         try {
@@ -110,12 +126,16 @@ public class NewsTransactionHelper {
         }
 
         System.out.println("데이터베이스(MySQL) 적재 시작");
+
+        LocalDateTime publishedAt = parsePubDate(naverNews.getPubDate());
+
         DailyNews news = DailyNews.builder()
                 .title(naverNews.getTitle())
                 .originalUrl(naverNews.getLink())
                 .summary(result.getSummary())
                 .category(categoryName)
                 .imageUrl(imageUrl)
+                .publishedAt(publishedAt)
                 .build();
 
         DailyNews savedNews = dailyNewsRepository.save(news);
