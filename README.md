@@ -42,6 +42,12 @@ AI 기반 뉴스 콘텐츠 제공, 키워드 퀴즈, 플래시카드 학습, 포
 | Build System | Gradle |
 | JDK | Amazon Corretto 21 |
 
+### AI / LLM
+
+| 항목 | 내용 |
+|------|------|
+| LLM | Gemini 3.5 Flash |
+
 ### Database & Storage
 | 항목 | 내용 |
 |------|------|
@@ -65,6 +71,8 @@ AI 기반 뉴스 콘텐츠 제공, 키워드 퀴즈, 플래시카드 학습, 포
 | API 문서화 | Swagger |
 | API 테스트 | Postman |
 | 부하 테스트 | K6 |
+
+
 
 <br>
 
