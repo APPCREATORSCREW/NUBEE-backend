@@ -15,6 +15,7 @@ public enum NewsErrorCode implements BaseErrorCode {
     INVALID_QUIZ_REQUEST(HttpStatus.BAD_REQUEST, "NEWS400_3", "필수 입력값이 누락되었거나 이미 완료된 뉴스 퀴즈입니다."),
     INVALID_URL_PROTOCOL(HttpStatus.BAD_REQUEST, "NEWS400_4", "http 또는 https 프로토콜만 허용됩니다."),
     INVALID_URL_HOST(HttpStatus.BAD_REQUEST, "NEWS400_5", "올바르지 않거나 접근이 제한된 URL 주소입니다."),
+    INVALID_PUB_DATE(HttpStatus.BAD_REQUEST, "NEWS400_6", "유효하지 않거나 누락된 기사 발행일 형식입니다."),
 
     // --- 404 Not Found ---
     DAILY_NEWS_NOT_FOUND(HttpStatus.NOT_FOUND, "NEWS404_1", "오늘 제공된 뉴스 학습 데이터가 존재하지 않습니다."),

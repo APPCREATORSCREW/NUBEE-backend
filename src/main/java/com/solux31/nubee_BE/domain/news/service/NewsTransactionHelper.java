@@ -23,7 +23,9 @@ import java.net.URL;
 import javax.net.ssl.*;
 import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Locale;
 
 @Component
@@ -36,16 +38,29 @@ public class NewsTransactionHelper {
     private final QuizRepository quizRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    // RFC 1123 규격 포맷터 (예: "Tue, 15 Oct 2024 10:30:00 +0900")
+    private static final DateTimeFormatter PUB_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
+
     private LocalDateTime parsePubDate(String pubDateStr) {
-        if (pubDateStr == null || pubDateStr.trim().isEmpty()) {
-            return LocalDateTime.now(); // 만약 날짜가 비어있다면 현재 시각으로 대처
+        // null 또는 빈 문자열 검증 및 1회 trim 처리
+        if (pubDateStr == null || pubDateStr.isBlank()) {
+            throw new NewsException(NewsErrorCode.INVALID_PUB_DATE);
         }
+
+        String trimmed = pubDateStr.trim();
+
         try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
-            return LocalDateTime.parse(pubDateStr, formatter);
-        } catch (Exception e) {
-            System.err.println("pubDate 파싱 실패 (" + pubDateStr + "), 현재 시간으로 대체합니다.");
-            return LocalDateTime.now();
+            // 오프셋(타임존) 정보를 보존하여 ZonedDateTime으로 파싱
+            ZonedDateTime zdt = ZonedDateTime.parse(trimmed, PUB_DATE_FORMATTER);
+
+            // DailyNews.publishedAt 필드가 LocalDateTime인 경우 오프셋 처리 후 변환
+            return zdt.toLocalDateTime();
+            // 만약 DailyNews.publishedAt 타입이 OffsetDateTime/ZonedDateTime이라면 zdt.toOffsetDateTime() 리턴
+        } catch (DateTimeParseException e) {
+            // DateTimeParseException만 정확히 포착하여 예외 던짐
+            System.err.println("❌ pubDate 파싱 실패: " + trimmed);
+            throw new NewsException(NewsErrorCode.INVALID_PUB_DATE);
         }
     }
 
