@@ -78,7 +78,7 @@ AI 기반 뉴스 콘텐츠 제공, 키워드 퀴즈, 플래시카드 학습, 포
 
 ## 🏗 아키텍처
 
-<img width="1280" height="720" alt="nubee-인프라 아키텍처04" src="https://github.com/user-attachments/assets/1dd8b908-b83d-47c1-8374-7823ca63265d" />
+<img width="1280" height="720" alt="nubee-인프라 아키텍처05" src="https://github.com/user-attachments/assets/dcc489c9-9ed9-498f-9cc2-9286c4e4f04a" />
 
 <br>
 
