@@ -16,7 +16,7 @@ public class NewsScheduler {
      * 매일 새벽 4시에 자동으로 뉴스 수집 및 퀴즈 생성 워크플로우를 실행합니다.
      * 크론 표현식: 초 분 시 일 월 요일
      */
-    @Scheduled(cron = "0 0 4 * * *", zone = "Asia/Seoul") // 한국 시간 기준 새벽 4시 정각
+    @Scheduled(cron = "0 1 0 * * *", zone = "Asia/Seoul") // 한국 시간 기준 새벽 0시 1분
     public void runDailyNewsWorkflow() {
         log.info("=== 새벽 뉴스 배치 스케줄러 시작 ===");
         try {
