@@ -32,8 +32,15 @@ public class UserNewsHistory {
     @Column(name = "viewed_at", nullable = false)
     private LocalDateTime viewedAt;
 
+    @PrePersist
+    public void prePersist() {
+        if (this.viewedAt == null) {
+            this.viewedAt = LocalDateTime.now();
+        }
+    }
+
     @Builder
-    public UserNewsHistory(DailyNews news, User user, LocalDateTime viewdAt) {
+    public UserNewsHistory(DailyNews news, User user, LocalDateTime viewedAt) {
         this.news = news;
         this.user = user;
         this.viewedAt = viewedAt;

@@ -506,7 +506,7 @@ public class NewsService {
             UserNewsHistory newsHistory = UserNewsHistory.builder()
                     .user(user)
                     .news(news)
-                    .viewdAt(LocalDateTime.now())
+                    .viewedAt(LocalDateTime.now())
                     .build();
 
             reviewRepository.save(newsHistory);
