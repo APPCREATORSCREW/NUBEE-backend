@@ -16,6 +16,8 @@ import com.solux31.nubee_BE.domain.news.exception.code.NewsErrorCode;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
+import com.solux31.nubee_BE.domain.review.entity.UserNewsHistory;
+import com.solux31.nubee_BE.domain.review.repository.ReviewRepository;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.exception.WordsException;
 import com.solux31.nubee_BE.domain.words.exception.code.WordsErrorCode;
@@ -46,6 +48,7 @@ public class NewsService {
     private final UserRepository userRepository;
     private final UserQuizLogRepository userQuizLogRepository;
     private final KeywordRepository keywordRepository;
+    private final ReviewRepository reviewRepository;
 
     private static final Long DEFAULT_KEYWORD_ID = 999L;
     private static final String DEFAULT_WORD_NAME = "알 수 없음";
@@ -494,6 +497,20 @@ public class NewsService {
                     .isCompleted(true)
                     .build();
             userQuizLogRepository.save(quizLog);
+
+            DailyNews news = quiz.getDailyNews();
+            boolean hasHistory = reviewRepository.existsByUserIdAndNewsId(userId, news.getId());
+
+            if (!hasHistory) {
+                UserNewsHistory newsHistory = UserNewsHistory.builder()
+                        .user(user)
+                        .news(news)
+                        .viewdAt(LocalDateTime.now())
+                        .build();
+
+                reviewRepository.save(newsHistory);
+            }
+
         }
 
         QuizSubmitResDTO.PointResultDto pointResult = new QuizSubmitResDTO.PointResultDto(
