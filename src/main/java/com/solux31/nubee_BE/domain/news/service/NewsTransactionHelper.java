@@ -133,6 +133,10 @@ public class NewsTransactionHelper {
             articleBody = naverNews.getDescription();
         }
 
+        if (articleBody == null || articleBody.trim().length() < 100) {
+            throw new NewsException(NewsErrorCode.ARTICLE_BODY_EMPTY);
+        }
+
         // 크롤링 실패 시 기본 이미지 셋팅
         if (imageUrl == null || imageUrl.trim().isEmpty()) {
             imageUrl = "https://my-service.com/images/default-nubee.png";
