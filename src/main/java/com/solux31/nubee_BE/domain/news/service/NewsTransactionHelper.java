@@ -159,6 +159,11 @@ public class NewsTransactionHelper {
 
         LocalDateTime publishedAt = parsePubDate(naverNews.getPubDate());
 
+        // DB VARCHAR(50) 길이 초과 방지용 자르기
+        if (publisher.length() > 50) {
+            publisher = publisher.substring(0, 50);
+        }
+
         DailyNews news = DailyNews.builder()
                 .title(naverNews.getTitle())
                 .originalUrl(naverNews.getLink())

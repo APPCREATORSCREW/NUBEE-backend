@@ -534,7 +534,7 @@ public class NewsService {
                 news.getId(), convertToEngCategory(news.getCategory()), news.getTitle(), news.getSummary(),
                 news.getImageUrl() != null ? news.getImageUrl() : "기본이미지URL",
                 news.getOriginalUrl() != null ? news.getOriginalUrl() : "원문출처없음",
-                news.getPublisher() != null ? news.getPublisher() : "네이버뉴스",
+                (news.getPublisher() != null && !news.getPublisher().isBlank()) ? news.getPublisher().trim() : "네이버뉴스",
                 news.getPublishedAt(),
                 relatedKeywords
         );
