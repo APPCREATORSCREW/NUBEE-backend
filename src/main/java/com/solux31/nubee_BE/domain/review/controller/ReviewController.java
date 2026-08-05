@@ -1,6 +1,5 @@
 package com.solux31.nubee_BE.domain.review.controller;
 
-import com.solux31.nubee_BE.domain.review.dto.Response.CategoryListResDTO;
 import com.solux31.nubee_BE.domain.review.dto.Response.ReviewResDTO;
 import com.solux31.nubee_BE.domain.review.exception.code.ReviewSuccessCode;
 import com.solux31.nubee_BE.domain.review.service.ReviewService;
@@ -48,25 +47,6 @@ public class ReviewController {
                 reviewService.getReviewNews(userId, category, page, size);
         return ResponseEntity.ok(
                 ApiResponse.onSuccess(ReviewSuccessCode.REVIEW_FETCH_SUCCESS, response)
-        );
-    }
-
-    @Operation(
-            summary = "복습 가능한 카테고리 목록 조회",
-            description = "로그인한 유저가 조회한 뉴스 기록에서 존재하는 카테고리 목록을 반환합니다."
-    )
-    @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "카테고리 목록 조회 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "서버 오류")
-    })
-    @GetMapping("/categories")
-    public ResponseEntity<ApiResponse<CategoryListResDTO>> getCategories(
-            @AuthenticationPrincipal AuthUser authUser
-    ) {
-        CategoryListResDTO result = reviewService.getCategories((authUser.getUserId()));
-        return ResponseEntity.ok(
-                ApiResponse.onSuccess(ReviewSuccessCode.CATEGORY_FETCH_SUCCESS, result)
         );
     }
 }

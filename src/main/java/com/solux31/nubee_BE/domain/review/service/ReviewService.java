@@ -1,6 +1,5 @@
 package com.solux31.nubee_BE.domain.review.service;
 
-import com.solux31.nubee_BE.domain.review.dto.Response.CategoryListResDTO;
 import com.solux31.nubee_BE.domain.review.dto.Response.NewsItemResDTO;
 import com.solux31.nubee_BE.domain.review.dto.Response.ReviewResDTO;
 import com.solux31.nubee_BE.domain.review.entity.UserNewsHistory;
@@ -35,13 +34,6 @@ public class ReviewService {
         return ReviewResDTO.builder()
                 .category(category)
                 .news(newsList)
-                .build();
-    }
-
-    public CategoryListResDTO getCategories(Long userId) {
-        List<String> categories = reviewRepository.findDistinctCategoriesByUserId(userId);
-        return CategoryListResDTO.builder()
-                .categories(categories)
                 .build();
     }
 }
