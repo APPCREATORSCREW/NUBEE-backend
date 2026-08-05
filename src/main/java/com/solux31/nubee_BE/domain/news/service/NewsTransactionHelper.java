@@ -88,6 +88,7 @@ public class NewsTransactionHelper {
     public String processSingleNews(NaverNewsResDTO.NaverNewsItem naverNews, String categoryName, String recentMainKeywords) throws Exception {
         String articleBody = "";
         String imageUrl = null;
+        String publisher = "네이버뉴스";
 
         try {
             System.out.println("기사 링크로 크롤링 시도 중... URL: " + naverNews.getLink());
@@ -107,6 +108,18 @@ public class NewsTransactionHelper {
             if (imgMeta != null) {
                 imageUrl = imgMeta.attr("content");
                 System.out.println("📸 기사 썸네일 이미지 크롤링 성공!: " + imageUrl);
+            }
+
+            var pressMeta = document.select("meta[property=og:article:author]").first();
+            if (pressMeta == null) {
+                pressMeta = document.select("meta[property=og:site_name]").first();
+            }
+
+            if (pressMeta != null && !pressMeta.attr("content").isBlank()) {
+                publisher = pressMeta.attr("content").trim();
+                System.out.println("📰 언론사 크롤링 성공!: " + publisher);
+            } else {
+                publisher = "네이버뉴스"; // fallback 기본값
             }
 
             if (articleBody == null || articleBody.trim().isEmpty()) {
@@ -146,12 +159,18 @@ public class NewsTransactionHelper {
 
         LocalDateTime publishedAt = parsePubDate(naverNews.getPubDate());
 
+        // DB VARCHAR(50) 길이 초과 방지용 자르기
+        if (publisher.length() > 50) {
+            publisher = publisher.substring(0, 50);
+        }
+
         DailyNews news = DailyNews.builder()
                 .title(naverNews.getTitle())
                 .originalUrl(naverNews.getLink())
                 .summary(result.getSummary())
                 .category(categoryName)
                 .imageUrl(imageUrl)
+                .publisher(publisher)
                 .publishedAt(publishedAt)
                 .build();
 

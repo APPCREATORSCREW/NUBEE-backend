@@ -19,6 +19,7 @@ public class NewsDetailResDTO {
     private String summary;
     private String image_url;
     private String original_url;
+    private String publisher;
     private LocalDateTime published_at;
     private List<RelatedKeywordDto> related_keywords; // 하이라이팅용 단어 리스트
 
