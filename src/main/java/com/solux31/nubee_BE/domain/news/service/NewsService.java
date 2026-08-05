@@ -497,20 +497,19 @@ public class NewsService {
                     .isCompleted(true)
                     .build();
             userQuizLogRepository.save(quizLog);
+        }
 
-            DailyNews news = quiz.getDailyNews();
-            boolean hasHistory = reviewRepository.existsByUserIdAndNewsId(userId, news.getId());
+        DailyNews news = quiz.getDailyNews();
+        boolean hasHistory = reviewRepository.existsByUserIdAndNewsId(userId, news.getId());
 
-            if (!hasHistory) {
-                UserNewsHistory newsHistory = UserNewsHistory.builder()
-                        .user(user)
-                        .news(news)
-                        .viewdAt(LocalDateTime.now())
-                        .build();
+        if (!hasHistory) {
+            UserNewsHistory newsHistory = UserNewsHistory.builder()
+                    .user(user)
+                    .news(news)
+                    .viewdAt(LocalDateTime.now())
+                    .build();
 
-                reviewRepository.save(newsHistory);
-            }
-
+            reviewRepository.save(newsHistory);
         }
 
         QuizSubmitResDTO.PointResultDto pointResult = new QuizSubmitResDTO.PointResultDto(
