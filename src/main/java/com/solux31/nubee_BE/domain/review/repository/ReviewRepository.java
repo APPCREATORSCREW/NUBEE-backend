@@ -25,4 +25,6 @@ public interface ReviewRepository extends JpaRepository<UserNewsHistory, Long> {
             "JOIN h.news n " +
             "WHERE h.user.id = :userId")
     List<String> findDistinctCategoriesByUserId(@Param("userId") Long userId);
+
+    boolean existsByUserIdAndNewsId(Long userId, Long newsId);
 }
