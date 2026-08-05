@@ -503,9 +503,11 @@ public class NewsService {
         boolean hasHistory = reviewRepository.existsByUserIdAndNewsId(userId, news.getId());
 
         if (!hasHistory) {
+            DailyNews newsProxy = dailyNewsRepository.getReferenceById(quiz.getDailyNews().getId());
+
             UserNewsHistory newsHistory = UserNewsHistory.builder()
                     .user(user)
-                    .news(news)
+                    .news(newsProxy) // 프록시 객체 전달
                     .viewedAt(LocalDateTime.now())
                     .build();
 
