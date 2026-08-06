@@ -192,7 +192,7 @@ public class NewsTransactionHelper {
         }
 
         DailyNews news = DailyNews.builder()
-                .title(naverNews.getTitle())
+                .title(cleanHtmlTags(naverNews.getTitle()))
                 .originalUrl(naverNews.getLink())
                 .summary(result.getSummary())
                 .category(categoryName)
@@ -373,5 +373,12 @@ public class NewsTransactionHelper {
             System.err.println("❌ Gemini 응답 JSON 파싱 실패: " + e.getMessage());
             throw new NewsException(NewsErrorCode.GEMINI_PARSE_ERROR);
         }
+    }
+
+    private String cleanHtmlTags(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        return org.jsoup.Jsoup.parse(text).text().trim();
     }
 }
