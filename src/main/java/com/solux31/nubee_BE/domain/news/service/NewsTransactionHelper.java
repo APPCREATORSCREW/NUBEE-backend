@@ -128,11 +128,18 @@ public class NewsTransactionHelper {
                 }
             }
 
-            // 🛡예외 방어: 추출된 문자열에 '기자'나 '특파원'이 섞여있을 경우 처리
+            // 예외 방어: 추출된 문자열에 '기자'나 '특파원'이 섞여있을 경우 처리
             if (publisher.contains("기자") || publisher.contains("특파원")) {
                 var siteMeta = document.select("meta[property=og:site_name]").first();
-                if (siteMeta != null && !siteMeta.attr("content").isBlank()) {
-                    publisher = siteMeta.attr("content").trim();
+
+                String fallbackPublisher = siteMeta == null
+                        ? ""
+                        : siteMeta.attr("content").trim();
+
+                if (!fallbackPublisher.isBlank()
+                        && !fallbackPublisher.contains("기자")
+                        && !fallbackPublisher.contains("특파원")) {
+                    publisher = fallbackPublisher;
                 } else {
                     publisher = "네이버뉴스";
                 }
