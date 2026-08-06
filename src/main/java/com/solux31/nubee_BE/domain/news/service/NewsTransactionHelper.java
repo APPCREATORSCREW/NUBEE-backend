@@ -379,6 +379,7 @@ public class NewsTransactionHelper {
         if (text == null || text.isBlank()) {
             return "";
         }
-        return org.jsoup.Jsoup.parse(text).text().trim();
+        String cleaned = Jsoup.parse(text).text().trim();
+        return (cleaned.length() > 100) ? cleaned.substring(0, 100) : cleaned;
     }
 }
