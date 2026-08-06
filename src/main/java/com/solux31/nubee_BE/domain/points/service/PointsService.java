@@ -1,11 +1,10 @@
 package com.solux31.nubee_BE.domain.points.service;
 
 import com.solux31.nubee_BE.domain.auth.entity.User;
-import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
 import com.solux31.nubee_BE.domain.auth.exception.AuthException;
+import com.solux31.nubee_BE.domain.auth.exception.code.AuthErrorCode;
 import com.solux31.nubee_BE.domain.auth.repository.UserRepository;
 import com.solux31.nubee_BE.domain.points.dto.Response.NewSkinInfoResDTO;
-import com.solux31.nubee_BE.domain.points.dto.Response.PointInfoResDTO;
 import com.solux31.nubee_BE.domain.points.dto.Response.PointResultResDTO;
 import com.solux31.nubee_BE.domain.points.entity.PointHistory;
 import com.solux31.nubee_BE.domain.points.exception.PointsException;
@@ -33,11 +32,6 @@ public class PointsService {
     private final PointsRepository pointsRepository;
     private final SkinRepository skinRepository;
     private final UserSkinRepository userSkinRepository;
-
-    public PointInfoResDTO getPoints(Long userId) {
-        User user = getUserOrThrow(userId);
-        return toPointInfo(user);
-    }
 
     @Transactional
     public PointResultResDTO addPoint(Long userId, int amount, String reason) {
@@ -107,13 +101,6 @@ public class PointsService {
                 .build());
 
         return skin;
-    }
-
-    private PointInfoResDTO toPointInfo(User user) {
-        return PointInfoResDTO.builder()
-                .currentPoint(user.getPoint())
-                .currentLevel(user.getCurrentLevel())
-                .build();
     }
 
     private NewSkinInfoResDTO toNewSkinInfo(Skin skin) {
