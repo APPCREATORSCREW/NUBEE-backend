@@ -110,16 +110,32 @@ public class NewsTransactionHelper {
                 System.out.println("📸 기사 썸네일 이미지 크롤링 성공!: " + imageUrl);
             }
 
-            var pressMeta = document.select("meta[property=og:article:author]").first();
-            if (pressMeta == null) {
-                pressMeta = document.select("meta[property=og:site_name]").first();
+            // 언론사(Publisher) 크롤링 로직 (기자 이름이 아닌 언론사명만 추출)
+            var logoImg = document.select(".media_end_head_top_logo img[alt]").first();
+
+            if (logoImg != null && !logoImg.attr("alt").isBlank()) {
+                // 1순위: 네이버 뉴스 언론사 로고의 alt 속성 (예: "연합뉴스", "조선일보")
+                publisher = logoImg.attr("alt").trim();
+                System.out.println(" 언론사 크롤링 성공 (로고 태그): " + publisher);
+            } else {
+                // 2순위: og:site_name 메타 태그
+                var siteMeta = document.select("meta[property=og:site_name]").first();
+                if (siteMeta != null && !siteMeta.attr("content").isBlank()) {
+                    publisher = siteMeta.attr("content").trim();
+                    System.out.println(" 언론사 크롤링 성공 (og:site_name): " + publisher);
+                } else {
+                    publisher = "네이버뉴스"; // fallback 기본값
+                }
             }
 
-            if (pressMeta != null && !pressMeta.attr("content").isBlank()) {
-                publisher = pressMeta.attr("content").trim();
-                System.out.println("📰 언론사 크롤링 성공!: " + publisher);
-            } else {
-                publisher = "네이버뉴스"; // fallback 기본값
+            // 🛡예외 방어: 추출된 문자열에 '기자'나 '특파원'이 섞여있을 경우 처리
+            if (publisher.contains("기자") || publisher.contains("특파원")) {
+                var siteMeta = document.select("meta[property=og:site_name]").first();
+                if (siteMeta != null && !siteMeta.attr("content").isBlank()) {
+                    publisher = siteMeta.attr("content").trim();
+                } else {
+                    publisher = "네이버뉴스";
+                }
             }
 
             if (articleBody == null || articleBody.trim().isEmpty()) {
