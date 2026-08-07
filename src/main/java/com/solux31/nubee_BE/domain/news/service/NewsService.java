@@ -28,6 +28,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.solux31.nubee_BE.domain.profile.service.StreakService;
+import com.solux31.nubee_BE.domain.points.service.PointsService;
 
 import java.time.LocalDateTime;
 import java.time.LocalDate;
@@ -51,6 +52,7 @@ public class NewsService {
     private final KeywordRepository keywordRepository;
     private final ReviewRepository reviewRepository;
     private final StreakService streakService;
+    private final PointsService pointsService;
 
     private static final Long DEFAULT_KEYWORD_ID = 999L;
     private static final String DEFAULT_WORD_NAME = "알 수 없음";
@@ -442,7 +444,7 @@ public class NewsService {
             earnedPoint = (isCorrect && isTodayQuiz) ? 1 : 0;
 
             if (earnedPoint > 0) {
-                user.updatePoint(earnedPoint);
+                pointsService.addPoint(userId, earnedPoint, "키워드 퀴즈 정답");
             }
 
             streakService.updateStreak(user);
@@ -497,7 +499,7 @@ public class NewsService {
             earnedPoint = (isCorrect && isTodayQuiz) ? 1 : 0;
 
             if (earnedPoint > 0) {
-                user.updatePoint(earnedPoint);
+                pointsService.addPoint(userId, earnedPoint, "뉴스 퀴즈 정답");
             }
 
             streakService.updateStreak(user);
