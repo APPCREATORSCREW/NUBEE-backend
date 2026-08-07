@@ -13,7 +13,7 @@ public interface DailyNewsRepository extends JpaRepository<DailyNews, Long> {
     @Query("SELECT d FROM DailyNews d JOIN d.relatedKeywords k WHERE k.word = :keywordName ORDER BY d.id DESC LIMIT 1")
     Optional<DailyNews> findTopByKeywordNameOrderByIdDesc(@Param("keywordName") String keywordName);
 
-    List<DailyNews> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
+    List<DailyNews> findByCreatedAtBetweenOrderByIdAsc(LocalDateTime start, LocalDateTime end);
 
     boolean existsByOriginalUrl(String originalUrl);
 

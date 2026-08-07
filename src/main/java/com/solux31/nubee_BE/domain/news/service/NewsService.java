@@ -329,23 +329,27 @@ public class NewsService {
 
         LocalDateTime startOfToday = LocalDate.now().atStartOfDay();
         LocalDateTime endOfToday = LocalDate.now().atTime(LocalTime.MAX);
-        List<DailyNews> allTodayNews = dailyNewsRepository.findByCreatedAtBetween(startOfToday, endOfToday);
+
+        // 1. DB 조회 시 ID 순으로 오름차순 정렬하여 기본 순서 고정
+        List<DailyNews> allTodayNews = dailyNewsRepository.findByCreatedAtBetweenOrderByIdAsc(startOfToday, endOfToday);
 
         if (allTodayNews == null || allTodayNews.isEmpty()) {
             return new TodayNewsResDTO(0, new ArrayList<>());
         }
 
-        // 1. 유저의 취약(가장 학습이 필요한) 카테고리 선별
+        // 2. 유저의 취약 카테고리 선별
         String targetCategory = determineWeakCategory(userId);
 
-        // 2. 취약 카테고리 우선 배치 + 나머지 카테고리 라운드 로빈 순서 재정렬
+        // 3. 취약 카테고리 우선 배치 + 라운드 로빈 재정렬
         List<DailyNews> priorityFilteredList = rearrangeByWeakCategorySequence(allTodayNews, targetCategory);
 
-        // 3. 선호 개수만큼 슬라이싱
+        // 4. 퀴즈를 풀어 취약 카테고리가 바뀌더라도 전체 리스트 순서가 뒤흔들리지 않도록
+        // id 기준 또는 작성일 기준으로 일관된 순서를 유지
+        // 선호 개수만큼 슬라이싱
         int targetSize = Math.min(userPreferredCount, priorityFilteredList.size());
         List<DailyNews> selectedNews = priorityFilteredList.subList(0, targetSize);
 
-        // 4. DTO 변환
+        // 5. DTO 변환 (기존과 동일)
         List<TodayNewsResDTO.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
             Keyword realKeyword = news.getRelatedKeywords().isEmpty() ? null : news.getRelatedKeywords().get(0);
 
