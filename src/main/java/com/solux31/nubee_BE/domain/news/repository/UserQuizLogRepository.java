@@ -43,4 +43,8 @@ public interface UserQuizLogRepository extends JpaRepository<UserQuizLog, Long> 
     List<UserQuizLog> findTodayLogsByUserIdAndQuizType(
             @Param("userId") Long userId,
             @Param("quizType") String quizType);
+
+    // 유저가 풀 완료한 퀴즈 ID 목록 전체 조회 (GET /api/keywords 회색 처리용)
+    @Query("SELECT uql.quizId FROM UserQuizLog uql WHERE uql.userId = :userId AND uql.isCompleted = true")
+    List<Long> findSolvedQuizIdsByUserId(@Param("userId") Long userId);
 }

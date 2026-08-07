@@ -25,6 +25,7 @@ public class TodayNewsResDTO {
         private String summary;
         private String image_url;
         private MainKeywordDto main_keyword;
+        boolean isSolved;
     }
 
     @Getter
