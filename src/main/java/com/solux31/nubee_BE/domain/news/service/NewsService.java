@@ -347,11 +347,15 @@ public class NewsService {
         // id 기준 또는 작성일 기준으로 일관된 순서를 유지
         // 선호 개수만큼 슬라이싱
         int targetSize = Math.min(userPreferredCount, priorityFilteredList.size());
-        List<DailyNews> selectedNews = priorityFilteredList.subList(0, targetSize);
+        List<DailyNews> selectedNews = priorityFilteredList.stream()
+                .limit(targetSize)
+                .sorted(Comparator.comparing(DailyNews::getId))
+                .toList();
 
         // 5. DTO 변환 (기존과 동일)
         List<TodayNewsResDTO.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
-            Keyword realKeyword = news.getRelatedKeywords().isEmpty() ? null : news.getRelatedKeywords().get(0);
+            List<Keyword> keywords = news.getRelatedKeywords();
+            Keyword realKeyword = (keywords != null && !keywords.isEmpty()) ? keywords.get(0) : null;
 
             Long keywordId = (realKeyword != null) ? realKeyword.getId() : DEFAULT_KEYWORD_ID;
             String wordName = (realKeyword != null) ? realKeyword.getWord() : DEFAULT_WORD_NAME;
