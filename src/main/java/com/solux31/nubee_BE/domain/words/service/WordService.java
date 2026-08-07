@@ -3,6 +3,8 @@ package com.solux31.nubee_BE.domain.words.service;
 import com.solux31.nubee_BE.domain.news.dto.NewsAnalysisResult;
 import com.solux31.nubee_BE.domain.news.entity.DailyNews;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
+import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
+import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
 import com.solux31.nubee_BE.domain.words.dto.Response.KeywordDetailResDTO;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
 import com.solux31.nubee_BE.domain.words.exception.WordsException;
@@ -21,6 +23,8 @@ public class WordService {
 
     private final KeywordRepository keywordRepository;
     private final DailyNewsRepository dailyNewsRepository;
+    private final QuizRepository quizRepository;
+    private final UserQuizLogRepository userQuizLogRepository;
 
     /**
      * [1단계 연동] 메인 키워드와 서브 키워드들을 받아 DB에 중복 없이 저장

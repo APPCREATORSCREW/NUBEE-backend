@@ -16,6 +16,7 @@ import com.solux31.nubee_BE.domain.news.exception.code.NewsErrorCode;
 import com.solux31.nubee_BE.domain.news.repository.DailyNewsRepository;
 import com.solux31.nubee_BE.domain.news.repository.QuizRepository;
 import com.solux31.nubee_BE.domain.news.repository.UserQuizLogRepository;
+import com.solux31.nubee_BE.domain.points.dto.Response.PointResultResDTO;
 import com.solux31.nubee_BE.domain.review.entity.UserNewsHistory;
 import com.solux31.nubee_BE.domain.review.repository.ReviewRepository;
 import com.solux31.nubee_BE.domain.words.entity.Keyword;
@@ -354,10 +355,17 @@ public class NewsService {
                 .sorted(Comparator.comparing(DailyNews::getId))
                 .toList();
 
-        // 5. DTO 변환 (기존과 동일)
+        // 1. 해당 유저가 푼 퀴즈 ID 목록 한 번에 조회
+        Set<Long> solvedQuizIds = new HashSet<>(userQuizLogRepository.findSolvedQuizIdsByUserId(userId));
+
+        // DTO 변환
         List<TodayNewsResDTO.NewsDto> newsDtoList = selectedNews.stream().map(news -> {
+            // 2. DTO 변환 시 isSolved 설정
             List<Keyword> keywords = news.getRelatedKeywords();
             Keyword realKeyword = (keywords != null && !keywords.isEmpty()) ? keywords.get(0) : null;
+
+            Quiz newsQuiz = quizRepository.findByDailyNewsIdAndQuizType(news.getId(), "NEWS").orElse(null);
+            boolean isSolved = (newsQuiz != null) && solvedQuizIds.contains(newsQuiz.getId());
 
             Long keywordId = (realKeyword != null) ? realKeyword.getId() : DEFAULT_KEYWORD_ID;
             String wordName = (realKeyword != null) ? realKeyword.getWord() : DEFAULT_WORD_NAME;
@@ -376,7 +384,8 @@ public class NewsService {
                     news.getTitle(),
                     news.getSummary(),
                     news.getImageUrl() != null ? news.getImageUrl() : "기본이미지URL",
-                    keywordDto
+                    keywordDto,
+                    isSolved
             );
         }).toList();
 
@@ -437,17 +446,20 @@ public class NewsService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NewsException(NewsErrorCode.INVALID_USER_INFO));
 
+        int currentPoint = user.getPoint();
         if (!alreadySolved) {
             boolean isTodayQuiz = quiz.getCreatedAt() != null
                     && quiz.getCreatedAt().toLocalDate().isEqual(LocalDate.now());
 
             earnedPoint = (isCorrect && isTodayQuiz) ? 1 : 0;
 
-            if (earnedPoint > 0) {
-                pointsService.addPoint(userId, earnedPoint, "키워드 퀴즈 정답");
-            }
-
             streakService.updateStreak(user);
+
+            if (earnedPoint > 0) {
+                //리턴값을 받아 최신 포인트 반영
+                PointResultResDTO pointResultRes = pointsService.addPoint(userId, earnedPoint, "키워드 퀴즈 정답");
+                currentPoint = pointResultRes.getCurrentPoint();
+            }
 
             UserQuizLog quizLog = UserQuizLog.builder()
                     .userId(userId)
@@ -461,7 +473,7 @@ public class NewsService {
         }
 
         QuizSubmitResDTO.PointResultDto pointResult = new QuizSubmitResDTO.PointResultDto(
-                earnedPoint, user.getPoint()
+                earnedPoint, currentPoint
         );
 
         return new QuizSubmitResDTO(
@@ -491,6 +503,7 @@ public class NewsService {
         boolean isCorrect = Objects.equals(quiz.getAnswer(), request.getSelected_answer());
 
         int earnedPoint = 0;
+        int currentPoint = user.getPoint();
 
         if (!alreadySolved) {
             boolean isTodayQuiz = quiz.getCreatedAt() != null
@@ -498,11 +511,13 @@ public class NewsService {
 
             earnedPoint = (isCorrect && isTodayQuiz) ? 1 : 0;
 
-            if (earnedPoint > 0) {
-                pointsService.addPoint(userId, earnedPoint, "뉴스 퀴즈 정답");
-            }
-
             streakService.updateStreak(user);
+
+            if (earnedPoint > 0) {
+                // 리턴값을 받아 최신 포인트 반영
+                PointResultResDTO pointResultRes = pointsService.addPoint(userId, earnedPoint, "뉴스 퀴즈 정답");
+                currentPoint = pointResultRes.getCurrentPoint();
+            }
 
             UserQuizLog quizLog = UserQuizLog.builder()
                     .userId(userId)
@@ -531,7 +546,7 @@ public class NewsService {
         }
 
         QuizSubmitResDTO.PointResultDto pointResult = new QuizSubmitResDTO.PointResultDto(
-                earnedPoint, user.getPoint()
+                earnedPoint, currentPoint
         );
 
         return new QuizSubmitResDTO(
