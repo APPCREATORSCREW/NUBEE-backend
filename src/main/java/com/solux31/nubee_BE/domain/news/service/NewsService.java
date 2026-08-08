@@ -76,73 +76,67 @@ public class NewsService {
                 ? String.join(", ", recentMainKeywords)
                 : "";
 
-        System.out.println("📋 [최근 수집된 MAIN 제외 키워드 목록]: " + recentMainKeywordsStr);
+        System.out.println("[최근 수집된 MAIN 제외 키워드 목록]: " + recentMainKeywordsStr);
 
         for (String categoryId : categories) {
             String categoryName = convertCategoryName(categoryId);
-            List<NaverNewsResDTO.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 20);
+
+            // 1. 네이버 API 수집 개수 50개
+            List<NaverNewsResDTO.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 50);
 
             if (naverNewsList == null || naverNewsList.isEmpty()) {
                 continue;
             }
 
             int savedCount = 0;
+
+            // -----------------------------------------------------------------
+            // [1차 시도] 중복 없는 신규 기사 우선 수집 (DB 기존 링크 제외)
+            // -----------------------------------------------------------------
             for (NaverNewsResDTO.NaverNewsItem naverNews : naverNewsList) {
-                // 목표 수량(2개) 달성 시 탈출 안내 출력 후 break
                 if (savedCount >= 2) {
-                    System.out.println("🎉 [" + categoryName + "] 목표 수량(" + savedCount + "개) 저장 완료, 해당 카테고리를 수집을 종료합니다.");
+                    System.out.println("🎉 [" + categoryName + "] 목표 수량(" + savedCount + "개) 저장 완료, 해당 카테고리 수집을 종료합니다.");
                     break;
                 }
 
-                // 1. 기사 중복 필터링
+                // DB에 이미 존재하거나 이번 워크플로우에서 수집한 기사는 스킵
                 if (collectedLinks.contains(naverNews.getLink()) || dailyNewsRepository.existsByOriginalUrl(naverNews.getLink())) {
                     System.out.println("⚠️ 중복 기사 링크 패스 [" + naverNews.getTitle() + "]");
                     continue;
                 }
 
-                try {
-                    String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName, recentMainKeywordsStr);
-                    System.out.println("🔍 추출된 메인 키워드: " + mainKeyword);
-
-                    if (mainKeyword != null && !mainKeyword.trim().isEmpty()) {
-
-                        // 2. 방금 생성된 기사 엔티티 역추적
-                        DailyNews currentNews = dailyNewsRepository.findByOriginalUrl(naverNews.getLink())
-                                .orElseThrow(() -> new NewsException(NewsErrorCode.NEWS_NOT_FOUND));
-
-                        // 3. 중복 키워드 분기 처리
-                        if (keywordRepository.existsByWord(mainKeyword)) {
-                            System.out.println("⚠️ 기존 마스터 키워드 발견 [" + mainKeyword + "] -> 현재 기사와 연동 및 퀴즈 추가 프로세스 진행");
-
-                            Keyword existingKeyword = keywordRepository.findFirstByWord(mainKeyword)
-                                    .orElseThrow(() -> new WordsException(WordsErrorCode.KEYWORD_NOT_FOUND));
-
-                            reuseExistQuizForKeyword(existingKeyword, currentNews, categoryName);
-                        } else {
-                            System.out.println("🌱 새로운 마스터 키워드 발견 [" + mainKeyword + "] -> Gemini 통합 연성 시작");
-                            saveMasterKeywordsAndQuizzesInTransaction(mainKeyword, categoryName, currentNews.getId());
-                        }
-
-                        collectedLinks.add(naverNews.getLink());
-                        savedCount++;
-
-                        if (recentMainKeywordsStr.isEmpty()) {
-                            recentMainKeywordsStr = mainKeyword;
-                        } else {
-                            recentMainKeywordsStr += ", " + mainKeyword;
-                        }
-
-                        System.out.println("✅ [" + categoryName + "] " + savedCount + "번째 뉴스 수집/저장 성공!"); // 저장 성공 시점 출력
-                    }
-                } catch (Exception e) {
-                    System.err.println("❌ [" + categoryName + "] 파이프라인 오류로 인한 패스: " + naverNews.getLink());
-                    e.printStackTrace();
+                if (processSingleNewsWithPipeline(naverNews, categoryName, recentMainKeywordsStr, collectedLinks)) {
+                    savedCount++;
+                    System.out.println("✅ [" + categoryName + "] " + savedCount + "번째 뉴스 수집/저장 성공!");
                 }
             }
 
-            // ⚠️ 반복문이 끝났는데도 2개를 못 채웠을 때만 출력되는 알림 (반복문 밖)
+            // -----------------------------------------------------------------
+            // [2차 시도] 신규 기사가 부족해 2개를 못 채웠을 때 (DB 중복 허용)
+            // -----------------------------------------------------------------
             if (savedCount < 2) {
-                System.out.println("⚠️ [" + categoryName + "] 카테고리는 후보 부족 또는 오류로 인해 " + savedCount + "개만 저장되었습니다.");
+                System.out.println("⚠️ [" + categoryName + "] 신규 기사 부족으로 과거 기사 중복 수집을 허용하여 2개를 채웁니다.");
+
+                for (NaverNewsResDTO.NaverNewsItem naverNews : naverNewsList) {
+                    if (savedCount >= 2) {
+                        System.out.println("🎉 [" + categoryName + "] 2차 시도를 통해 목표 수량(" + savedCount + "개) 저장 완료!");
+                        break;
+                    }
+
+                    // 이번 실행 동안 이미 처리한 링크만 차단 (DB 과거 이력 중복은 허용)
+                    if (collectedLinks.contains(naverNews.getLink())) {
+                        continue;
+                    }
+
+                    if (processSingleNewsWithPipeline(naverNews, categoryName, recentMainKeywordsStr, collectedLinks)) {
+                        savedCount++;
+                        System.out.println("✅ [" + categoryName + "] (2차 수집) " + savedCount + "번째 뉴스 수집/저장 성공!");
+                    }
+                }
+            }
+
+            if (savedCount < 2) {
+                System.out.println("⚠️ [" + categoryName + "] 카테고리는 " + savedCount + "개만 저장되었습니다.");
             }
         }
     }
@@ -182,6 +176,7 @@ public class NewsService {
         } catch (Exception e) {
             System.err.println("❌ 기존 퀴즈 재사용 프로세스 중 오류 발생: " + keyword.getWord());
             e.printStackTrace();
+            throw e;
         }
     }
 
@@ -713,5 +708,50 @@ public class NewsService {
         if (logs.isEmpty()) return 0.0;
         long correctCount = logs.stream().filter(UserQuizLog::isCorrect).count();
         return Math.round((double) correctCount / logs.size() * 100.0);
+    }
+
+    private boolean processSingleNewsWithPipeline(
+            NaverNewsResDTO.NaverNewsItem naverNews,
+            String categoryName,
+            String recentMainKeywordsStr,
+            List<String> collectedLinks
+    ) {
+        DailyNews currentNews = null;
+        try {
+            String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName, recentMainKeywordsStr);
+            System.out.println("🔍 추출된 메인 키워드: " + mainKeyword);
+
+            if (mainKeyword != null && !mainKeyword.trim().isEmpty()) {
+                currentNews = dailyNewsRepository.findByOriginalUrl(naverNews.getLink())
+                        .orElseThrow(() -> new NewsException(NewsErrorCode.NEWS_NOT_FOUND));
+
+                if (keywordRepository.existsByWord(mainKeyword)) {
+                    System.out.println("기존 마스터 키워드 발견 [" + mainKeyword + "] -> 현재 기사와 연동 및 퀴즈 추가 프로세스 진행");
+                    Keyword existingKeyword = keywordRepository.findFirstByWord(mainKeyword)
+                            .orElseThrow(() -> new WordsException(WordsErrorCode.KEYWORD_NOT_FOUND));
+
+                    reuseExistQuizForKeyword(existingKeyword, currentNews, categoryName);
+                } else {
+                    System.out.println("새로운 마스터 키워드 발견 [" + mainKeyword + "] -> Gemini 통합 연성 시작");
+                    saveMasterKeywordsAndQuizzesInTransaction(mainKeyword, categoryName, currentNews.getId());
+                }
+
+                collectedLinks.add(naverNews.getLink());
+                return true;
+            }
+        } catch (Exception e) {
+            System.err.println("❌ [" + categoryName + "] 파이프라인 오류로 인한 패스: " + naverNews.getLink());
+            e.printStackTrace();
+
+            if (currentNews != null) {
+                try {
+                    dailyNewsRepository.delete(currentNews);
+                    System.out.println("🧹 [Cleanup] 불완전하게 저장된 DailyNews 삭제 완료 (ID: " + currentNews.getId() + ")");
+                } catch (Exception cleanupEx) {
+                    System.err.println("🚨 Cleanup 중 예상치 못한 에러: " + cleanupEx.getMessage());
+                }
+            }
+        }
+        return false;
     }
 }
