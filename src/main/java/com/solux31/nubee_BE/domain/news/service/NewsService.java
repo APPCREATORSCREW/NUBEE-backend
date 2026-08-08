@@ -176,6 +176,7 @@ public class NewsService {
         } catch (Exception e) {
             System.err.println("❌ 기존 퀴즈 재사용 프로세스 중 오류 발생: " + keyword.getWord());
             e.printStackTrace();
+            throw e;
         }
     }
 
@@ -715,12 +716,13 @@ public class NewsService {
             String recentMainKeywordsStr,
             List<String> collectedLinks
     ) {
+        DailyNews currentNews = null;
         try {
             String mainKeyword = newsTransactionHelper.processSingleNews(naverNews, categoryName, recentMainKeywordsStr);
             System.out.println("🔍 추출된 메인 키워드: " + mainKeyword);
 
             if (mainKeyword != null && !mainKeyword.trim().isEmpty()) {
-                DailyNews currentNews = dailyNewsRepository.findByOriginalUrl(naverNews.getLink())
+                currentNews = dailyNewsRepository.findByOriginalUrl(naverNews.getLink())
                         .orElseThrow(() -> new NewsException(NewsErrorCode.NEWS_NOT_FOUND));
 
                 if (keywordRepository.existsByWord(mainKeyword)) {
@@ -740,6 +742,15 @@ public class NewsService {
         } catch (Exception e) {
             System.err.println("❌ [" + categoryName + "] 파이프라인 오류로 인한 패스: " + naverNews.getLink());
             e.printStackTrace();
+
+            if (currentNews != null) {
+                try {
+                    dailyNewsRepository.delete(currentNews);
+                    System.out.println("🧹 [Cleanup] 불완전하게 저장된 DailyNews 삭제 완료 (ID: " + currentNews.getId() + ")");
+                } catch (Exception cleanupEx) {
+                    System.err.println("🚨 Cleanup 중 예상치 못한 에러: " + cleanupEx.getMessage());
+                }
+            }
         }
         return false;
     }
