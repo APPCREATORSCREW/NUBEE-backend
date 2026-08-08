@@ -76,12 +76,12 @@ public class NewsService {
                 ? String.join(", ", recentMainKeywords)
                 : "";
 
-        System.out.println("📋 [최근 수집된 MAIN 제외 키워드 목록]: " + recentMainKeywordsStr);
+        System.out.println("[최근 수집된 MAIN 제외 키워드 목록]: " + recentMainKeywordsStr);
 
         for (String categoryId : categories) {
             String categoryName = convertCategoryName(categoryId);
 
-            // 1. 네이버 API 수집 개수를 20 -> 50개로 확대
+            // 1. 네이버 API 수집 개수 50개
             List<NaverNewsResDTO.NaverNewsItem> naverNewsList = newsApiService.fetchNewsByCategory(categoryId, 50);
 
             if (naverNewsList == null || naverNewsList.isEmpty()) {
@@ -136,7 +136,7 @@ public class NewsService {
             }
 
             if (savedCount < 2) {
-                System.out.println("⚠️ [" + categoryName + "] 카테고리는 후보 부족 또는 오류로 인해 " + savedCount + "개만 저장되었습니다.");
+                System.out.println("⚠️ [" + categoryName + "] 카테고리는 " + savedCount + "개만 저장되었습니다.");
             }
         }
     }
